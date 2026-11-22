@@ -64,32 +64,26 @@ public enum ErrorCode {
             ErrorCategory.BUSINESS,
             HttpStatus.CONFLICT
     ),
-    CLIENT_PHONE_ALREADY_EXISTS(
-            "CLIENTS_BS003",
-            "A client with the provided phone number already exists.",
-            ErrorCategory.BUSINESS,
-            HttpStatus.CONFLICT
-    ),
     CLIENT_DELETED_IMMUTABLE(
-            "CLIENTS_BS004",
+            "CLIENTS_BS003",
             "Deleted clients cannot be modified or reactivated.",
             ErrorCategory.BUSINESS,
             HttpStatus.CONFLICT
     ),
     CLIENT_HAS_ACTIVE_RESERVATIONS(
-            "CLIENTS_BS005",
+            "CLIENTS_BS004",
             "Client has active reservations and cannot be deleted until they are cancelled.",
             ErrorCategory.BUSINESS,
             HttpStatus.CONFLICT
     ),
     CLIENT_INVALID_STATUS_TRANSITION(
-            "CLIENTS_BS006",
+            "CLIENTS_BS005",
             "Client status can only be manually updated to ACTIVE or BANNED.",
             ErrorCategory.BUSINESS,
             HttpStatus.BAD_REQUEST
     ),
     CLIENT_NOT_ACTIVE(
-            "CLIENTS_BS007",
+            "CLIENTS_BS006",
             "Client is not active and cannot create or hold reservations.",
             ErrorCategory.BUSINESS,
             HttpStatus.CONFLICT
