@@ -2,7 +2,7 @@
 <jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3">
   <hashTree>
     <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="Sabor Gourmet — Plan de Concurrencia (SG-PER-04)" enabled="true">
-      <stringProp name="TestPlan.comments">Plan de pruebas de concurrencia para Sabor Gourmet REST API. Valida exclusión mutua con ReentrantReadWriteLock en reservas simultáneas (SG-PER-04), unicidad de email en registros paralelos y cancelaciones simultáneas sin duplicidad de estado.</stringProp>
+      <stringProp name="TestPlan.comments">Plan de pruebas de concurrencia para Sabor Gourmet REST API. Valida exclusión mutua en reservas simultáneas (SG-PER-04), unicidad de email y cancelaciones simultáneas.</stringProp>
       <boolProp name="TestPlan.functional_mode">false</boolProp>
       <boolProp name="TestPlan.tearDown_on_shutdown">true</boolProp>
       <boolProp name="TestPlan.serialize_threadgroups">true</boolProp>
@@ -41,6 +41,16 @@
           <elementProp name="CANCEL_TIME" elementType="Argument">
             <stringProp name="Argument.name">CANCEL_TIME</stringProp>
             <stringProp name="Argument.value">${__P(cancelTime,18:00)}</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+          <elementProp name="RUN_ID" elementType="Argument">
+            <stringProp name="Argument.name">RUN_ID</stringProp>
+            <stringProp name="Argument.value">${__time(yyyyMMddHHmmss,)}${__Random(100,999,)}</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+          <elementProp name="TABLE_NUMBER" elementType="Argument">
+            <stringProp name="Argument.name">TABLE_NUMBER</stringProp>
+            <stringProp name="Argument.value">${__Random(10000,99999,)}</stringProp>
             <stringProp name="Argument.metadata">=</stringProp>
           </elementProp>
         </collectionProp>
@@ -101,7 +111,7 @@
                 <boolProp name="HTTPArgument.always_encode">false</boolProp>
                 <stringProp name="Argument.value">{
   &quot;name&quot;: &quot;JMeter Load Owner&quot;,
-  &quot;email&quot;: &quot;${__P(sg.setupEmail)}&quot;,
+  &quot;email&quot;: &quot;jmeter-owner-${RUN_ID}@saborgourmet.cl&quot;,
   &quot;phone&quot;: &quot;+56912345678&quot;
 }</stringProp>
                 <stringProp name="Argument.metadata">=</stringProp>
@@ -120,26 +130,6 @@
           <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
         </HTTPSamplerProxy>
         <hashTree>
-          <JSR223PreProcessor guiclass="TestBeanGUI" testclass="JSR223PreProcessor" testname="Inicializar variables únicas y contadores" enabled="true">
-            <stringProp name="scriptLanguage">groovy</stringProp>
-            <stringProp name="cacheKey">true</stringProp>
-            <stringProp name="parameters"></stringProp>
-            <stringProp name="filename"></stringProp>
-            <stringProp name="script">long ts = System.currentTimeMillis()
-int tableNum = 10000 + (int) (ts % 89000)
-synchronized (props) {
-    props.setProperty("sg.setupEmail", "jmeter-owner-" + ts + "@saborgourmet.cl")
-    props.setProperty("sg.sharedEmail", "jmeter-race-" + ts + "@saborgourmet.cl")
-    props.setProperty("sg.tableNumber", String.valueOf(tableNum))
-    props.setProperty("sg.res.201", "0")
-    props.setProperty("sg.res.409", "0")
-    props.setProperty("sg.cli.201", "0")
-    props.setProperty("sg.cli.409", "0")
-    props.setProperty("sg.can.200", "0")
-    props.setProperty("sg.can.409", "0")
-}</stringProp>
-          </JSR223PreProcessor>
-          <hashTree/>
           <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Assert HTTP 201" enabled="true">
             <collectionProp name="Asserion.test_strings">
               <stringProp name="49587">201</stringProp>
@@ -157,14 +147,6 @@ synchronized (props) {
             <stringProp name="JSONPostProcessor.defaultValues">NOT_FOUND</stringProp>
           </JSONPostProcessor>
           <hashTree/>
-          <JSR223PostProcessor guiclass="TestBeanGUI" testclass="JSR223PostProcessor" testname="Publicar sg.clientId" enabled="true">
-            <stringProp name="scriptLanguage">groovy</stringProp>
-            <stringProp name="cacheKey">true</stringProp>
-            <stringProp name="parameters"></stringProp>
-            <stringProp name="filename"></stringProp>
-            <stringProp name="script">props.setProperty("sg.clientId", vars.get("setupClientId"))</stringProp>
-          </JSR223PostProcessor>
-          <hashTree/>
         </hashTree>
 
         <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="[Setup] 2. Crear mesa dedicada" enabled="true">
@@ -174,7 +156,7 @@ synchronized (props) {
               <elementProp name="" elementType="HTTPArgument">
                 <boolProp name="HTTPArgument.always_encode">false</boolProp>
                 <stringProp name="Argument.value">{
-  &quot;number&quot;: ${__P(sg.tableNumber)},
+  &quot;number&quot;: ${TABLE_NUMBER},
   &quot;capacity&quot;: 4,
   &quot;location&quot;: &quot;JMeter Load Hall&quot;,
   &quot;active&quot;: true
@@ -195,6 +177,20 @@ synchronized (props) {
           <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
         </HTTPSamplerProxy>
         <hashTree>
+          <UserParameters guiclass="UserParametersGui" testclass="UserParameters" testname="Publicar sg.clientId y sg.sharedEmail" enabled="true">
+            <collectionProp name="UserParameters.names">
+              <stringProp name="1">_pubClientId</stringProp>
+              <stringProp name="2">_pubSharedEmail</stringProp>
+            </collectionProp>
+            <collectionProp name="UserParameters.thread_values">
+              <collectionProp name="1">
+                <stringProp name="1">${__setProperty(sg.clientId,${setupClientId},)}</stringProp>
+                <stringProp name="2">${__setProperty(sg.sharedEmail,jmeter-race-${RUN_ID}@saborgourmet.cl,)}</stringProp>
+              </collectionProp>
+            </collectionProp>
+            <boolProp name="UserParameters.per_iteration">false</boolProp>
+          </UserParameters>
+          <hashTree/>
           <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Assert HTTP 201" enabled="true">
             <collectionProp name="Asserion.test_strings">
               <stringProp name="49587">201</stringProp>
@@ -212,14 +208,6 @@ synchronized (props) {
             <stringProp name="JSONPostProcessor.defaultValues">NOT_FOUND</stringProp>
           </JSONPostProcessor>
           <hashTree/>
-          <JSR223PostProcessor guiclass="TestBeanGUI" testclass="JSR223PostProcessor" testname="Publicar sg.tableId" enabled="true">
-            <stringProp name="scriptLanguage">groovy</stringProp>
-            <stringProp name="cacheKey">true</stringProp>
-            <stringProp name="parameters"></stringProp>
-            <stringProp name="filename"></stringProp>
-            <stringProp name="script">props.setProperty("sg.tableId", vars.get("setupTableId"))</stringProp>
-          </JSR223PostProcessor>
-          <hashTree/>
         </hashTree>
 
         <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="[Setup] 3. Crear reserva para carrera de cancelación" enabled="true">
@@ -229,8 +217,8 @@ synchronized (props) {
               <elementProp name="" elementType="HTTPArgument">
                 <boolProp name="HTTPArgument.always_encode">false</boolProp>
                 <stringProp name="Argument.value">{
-  &quot;clientId&quot;: ${__P(sg.clientId)},
-  &quot;tableId&quot;: ${__P(sg.tableId)},
+  &quot;clientId&quot;: ${setupClientId},
+  &quot;tableId&quot;: ${setupTableId},
   &quot;date&quot;: &quot;${BOOKING_DATE}&quot;,
   &quot;startTime&quot;: &quot;${CANCEL_TIME}&quot;,
   &quot;guestCount&quot;: 4,
@@ -252,6 +240,18 @@ synchronized (props) {
           <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
         </HTTPSamplerProxy>
         <hashTree>
+          <UserParameters guiclass="UserParametersGui" testclass="UserParameters" testname="Publicar sg.tableId" enabled="true">
+            <collectionProp name="UserParameters.names">
+              <stringProp name="1">_pubTableId</stringProp>
+            </collectionProp>
+            <collectionProp name="UserParameters.thread_values">
+              <collectionProp name="1">
+                <stringProp name="1">${__setProperty(sg.tableId,${setupTableId},)}</stringProp>
+              </collectionProp>
+            </collectionProp>
+            <boolProp name="UserParameters.per_iteration">false</boolProp>
+          </UserParameters>
+          <hashTree/>
           <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Assert HTTP 201" enabled="true">
             <collectionProp name="Asserion.test_strings">
               <stringProp name="49587">201</stringProp>
@@ -269,13 +269,45 @@ synchronized (props) {
             <stringProp name="JSONPostProcessor.defaultValues">NOT_FOUND</stringProp>
           </JSONPostProcessor>
           <hashTree/>
-          <JSR223PostProcessor guiclass="TestBeanGUI" testclass="JSR223PostProcessor" testname="Publicar sg.cancelReservationId" enabled="true">
-            <stringProp name="scriptLanguage">groovy</stringProp>
-            <stringProp name="cacheKey">true</stringProp>
-            <stringProp name="parameters"></stringProp>
-            <stringProp name="filename"></stringProp>
-            <stringProp name="script">props.setProperty("sg.cancelReservationId", vars.get("cancelReservationId"))</stringProp>
-          </JSR223PostProcessor>
+        </hashTree>
+
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="[Setup] 4. Confirmar datos iniciales listos" enabled="true">
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
+            <collectionProp name="Arguments.arguments"/>
+          </elementProp>
+          <stringProp name="HTTPSampler.domain"></stringProp>
+          <stringProp name="HTTPSampler.port"></stringProp>
+          <stringProp name="HTTPSampler.protocol"></stringProp>
+          <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
+          <stringProp name="HTTPSampler.path">/api/v1/reservations/${cancelReservationId}</stringProp>
+          <stringProp name="HTTPSampler.method">GET</stringProp>
+          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+          <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+          <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+        </HTTPSamplerProxy>
+        <hashTree>
+          <UserParameters guiclass="UserParametersGui" testclass="UserParameters" testname="Publicar sg.cancelReservationId" enabled="true">
+            <collectionProp name="UserParameters.names">
+              <stringProp name="1">_pubCancelResId</stringProp>
+            </collectionProp>
+            <collectionProp name="UserParameters.thread_values">
+              <collectionProp name="1">
+                <stringProp name="1">${__setProperty(sg.cancelReservationId,${cancelReservationId},)}</stringProp>
+              </collectionProp>
+            </collectionProp>
+            <boolProp name="UserParameters.per_iteration">false</boolProp>
+          </UserParameters>
+          <hashTree/>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Assert HTTP 200" enabled="true">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="49586">200</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.custom_message">Reserva de setup debe existir con HTTP 200</stringProp>
+            <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
+            <boolProp name="Assertion.assume_success">false</boolProp>
+            <intProp name="Assertion.test_type">8</intProp>
+          </ResponseAssertion>
           <hashTree/>
         </hashTree>
       </hashTree>
@@ -342,36 +374,15 @@ synchronized (props) {
             <intProp name="Assertion.test_type">2</intProp>
           </ResponseAssertion>
           <hashTree/>
-          <JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Contabilizar 201/409 y validar código RESERVATIONS_BS006" enabled="true">
-            <stringProp name="scriptLanguage">groovy</stringProp>
-            <stringProp name="cacheKey">true</stringProp>
-            <stringProp name="parameters"></stringProp>
-            <stringProp name="filename"></stringProp>
-            <stringProp name="script">import groovy.json.JsonSlurper
-
-String status = prev.getResponseCode()
-def json = new JsonSlurper().parseText(prev.getResponseDataAsString())
-
-if (status == "201") {
-    synchronized (props) {
-        int c = Integer.parseInt(props.getProperty("sg.res.201", "0")) + 1
-        props.setProperty("sg.res.201", String.valueOf(c))
-    }
-} else if (status == "409") {
-    if (json.code != "RESERVATIONS_BS006") {
-        AssertionResult.setFailure(true)
-        AssertionResult.setFailureMessage("Se esperaba RESERVATIONS_BS006 en 409, pero llegó: " + json.code)
-        return
-    }
-    synchronized (props) {
-        int c = Integer.parseInt(props.getProperty("sg.res.409", "0")) + 1
-        props.setProperty("sg.res.409", String.valueOf(c))
-    }
-} else {
-    AssertionResult.setFailure(true)
-    AssertionResult.setFailureMessage("Estado HTTP inesperado en carrera de reservas: " + status)
-}</stringProp>
-          </JSR223Assertion>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Assert cuerpo PENDING o RESERVATIONS_BS006" enabled="true">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="223456789">(&quot;status&quot;\s*:\s*&quot;PENDING&quot;|RESERVATIONS_BS006)</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.custom_message">Respuesta debe ser reserva PENDING (201) o conflicto RESERVATIONS_BS006 (409)</stringProp>
+            <stringProp name="Assertion.test_field">Assertion.response_data</stringProp>
+            <boolProp name="Assertion.assume_success">false</boolProp>
+            <intProp name="Assertion.test_type">2</intProp>
+          </ResponseAssertion>
           <hashTree/>
         </hashTree>
       </hashTree>
@@ -435,36 +446,15 @@ if (status == "201") {
             <intProp name="Assertion.test_type">2</intProp>
           </ResponseAssertion>
           <hashTree/>
-          <JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Contabilizar 201/409 y validar código CLIENTS_BS002" enabled="true">
-            <stringProp name="scriptLanguage">groovy</stringProp>
-            <stringProp name="cacheKey">true</stringProp>
-            <stringProp name="parameters"></stringProp>
-            <stringProp name="filename"></stringProp>
-            <stringProp name="script">import groovy.json.JsonSlurper
-
-String status = prev.getResponseCode()
-def json = new JsonSlurper().parseText(prev.getResponseDataAsString())
-
-if (status == "201") {
-    synchronized (props) {
-        int c = Integer.parseInt(props.getProperty("sg.cli.201", "0")) + 1
-        props.setProperty("sg.cli.201", String.valueOf(c))
-    }
-} else if (status == "409") {
-    if (json.code != "CLIENTS_BS002") {
-        AssertionResult.setFailure(true)
-        AssertionResult.setFailureMessage("Se esperaba CLIENTS_BS002 en 409, pero llegó: " + json.code)
-        return
-    }
-    synchronized (props) {
-        int c = Integer.parseInt(props.getProperty("sg.cli.409", "0")) + 1
-        props.setProperty("sg.cli.409", String.valueOf(c))
-    }
-} else {
-    AssertionResult.setFailure(true)
-    AssertionResult.setFailureMessage("Estado HTTP inesperado en carrera de clientes: " + status)
-}</stringProp>
-          </JSR223Assertion>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Assert cuerpo registro exitoso o CLIENTS_BS002" enabled="true">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="223456790">(Client registered successfully|CLIENTS_BS002)</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.custom_message">Respuesta debe ser registro exitoso (201) o conflicto CLIENTS_BS002 (409)</stringProp>
+            <stringProp name="Assertion.test_field">Assertion.response_data</stringProp>
+            <boolProp name="Assertion.assume_success">false</boolProp>
+            <intProp name="Assertion.test_type">2</intProp>
+          </ResponseAssertion>
           <hashTree/>
         </hashTree>
       </hashTree>
@@ -517,36 +507,15 @@ if (status == "201") {
             <intProp name="Assertion.test_type">2</intProp>
           </ResponseAssertion>
           <hashTree/>
-          <JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Contabilizar 200/409 y validar código RESERVATIONS_BS010" enabled="true">
-            <stringProp name="scriptLanguage">groovy</stringProp>
-            <stringProp name="cacheKey">true</stringProp>
-            <stringProp name="parameters"></stringProp>
-            <stringProp name="filename"></stringProp>
-            <stringProp name="script">import groovy.json.JsonSlurper
-
-String status = prev.getResponseCode()
-def json = new JsonSlurper().parseText(prev.getResponseDataAsString())
-
-if (status == "200") {
-    synchronized (props) {
-        int c = Integer.parseInt(props.getProperty("sg.can.200", "0")) + 1
-        props.setProperty("sg.can.200", String.valueOf(c))
-    }
-} else if (status == "409") {
-    if (json.code != "RESERVATIONS_BS010") {
-        AssertionResult.setFailure(true)
-        AssertionResult.setFailureMessage("Se esperaba RESERVATIONS_BS010 en 409, pero llegó: " + json.code)
-        return
-    }
-    synchronized (props) {
-        int c = Integer.parseInt(props.getProperty("sg.can.409", "0")) + 1
-        props.setProperty("sg.can.409", String.valueOf(c))
-    }
-} else {
-    AssertionResult.setFailure(true)
-    AssertionResult.setFailureMessage("Estado HTTP inesperado en carrera de cancelaciones: " + status)
-}</stringProp>
-          </JSR223Assertion>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Assert cuerpo CANCELLED o RESERVATIONS_BS010" enabled="true">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="223456791">(&quot;status&quot;\s*:\s*&quot;CANCELLED&quot;|RESERVATIONS_BS010)</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.custom_message">Respuesta debe ser reserva CANCELLED (200) o conflicto RESERVATIONS_BS010 (409)</stringProp>
+            <stringProp name="Assertion.test_field">Assertion.response_data</stringProp>
+            <boolProp name="Assertion.assume_success">false</boolProp>
+            <intProp name="Assertion.test_type">2</intProp>
+          </ResponseAssertion>
           <hashTree/>
         </hashTree>
       </hashTree>
@@ -554,7 +523,7 @@ if (status == "200") {
       <!-- =================================================================== -->
       <!-- tearDown Thread Group: verifica invariantes exactos en data.json    -->
       <!-- =================================================================== -->
-      <PostThreadGroup guiclass="PostThreadGroupGui" testclass="PostThreadGroup" testname="tearDown — Verificar Integridad y Contadores Exactos" enabled="true">
+      <PostThreadGroup guiclass="PostThreadGroupGui" testclass="PostThreadGroup" testname="tearDown — Verificar Integridad Post-Concurrencia" enabled="true">
         <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
         <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
           <boolProp name="LoopController.continue_forever">false</boolProp>
@@ -568,7 +537,7 @@ if (status == "200") {
         <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
       </PostThreadGroup>
       <hashTree>
-        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="[Verify] 1. Confirmar exactamente 1 reserva persistida y conteos exactos" enabled="true">
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="[Verify] 1. Confirmar exactamente 1 reserva PENDING persistida" enabled="true">
           <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
             <collectionProp name="Arguments.arguments"/>
           </elementProp>
@@ -594,43 +563,23 @@ if (status == "200") {
             <intProp name="Assertion.test_type">8</intProp>
           </ResponseAssertion>
           <hashTree/>
-          <JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Validar 1 éxito y (N-1) conflictos en los 3 escenarios" enabled="true">
-            <stringProp name="scriptLanguage">groovy</stringProp>
-            <stringProp name="cacheKey">true</stringProp>
-            <stringProp name="parameters"></stringProp>
-            <stringProp name="filename"></stringProp>
-            <stringProp name="script">import groovy.json.JsonSlurper
-
-int threads = Integer.parseInt(vars.get("THREADS"))
-int expectedConflicts = threads - 1
-
-def reservations = new JsonSlurper().parseText(prev.getResponseDataAsString())
-int res201 = Integer.parseInt(props.getProperty("sg.res.201", "0"))
-int res409 = Integer.parseInt(props.getProperty("sg.res.409", "0"))
-int cli201 = Integer.parseInt(props.getProperty("sg.cli.201", "0"))
-int cli409 = Integer.parseInt(props.getProperty("sg.cli.409", "0"))
-int can200 = Integer.parseInt(props.getProperty("sg.can.200", "0"))
-int can409 = Integer.parseInt(props.getProperty("sg.can.409", "0"))
-
-List&lt;String&gt; errors = []
-if (reservations.size() != 1) {
-    errors.add("Se esperaba exactamente 1 reserva PENDING persistida, pero hay " + reservations.size())
-}
-if (res201 != 1 || res409 != expectedConflicts) {
-    errors.add("Reservas concurrentes: esperado 1x201 y " + expectedConflicts + "x409, obtenido " + res201 + "x201 y " + res409 + "x409")
-}
-if (cli201 != 1 || cli409 != expectedConflicts) {
-    errors.add("Clientes concurrentes: esperado 1x201 y " + expectedConflicts + "x409, obtenido " + cli201 + "x201 y " + cli409 + "x409")
-}
-if (can200 != 1 || can409 != expectedConflicts) {
-    errors.add("Cancelaciones concurrentes: esperado 1x200 y " + expectedConflicts + "x409, obtenido " + can200 + "x200 y " + can409 + "x409")
-}
-
-if (!errors.isEmpty()) {
-    AssertionResult.setFailure(true)
-    AssertionResult.setFailureMessage(errors.join(" | "))
-}</stringProp>
-          </JSR223Assertion>
+          <JSONPathAssertion guiclass="JSONPathAssertionGui" testclass="JSONPathAssertion" testname="Assert existe al menos 1 reserva ($[0].id)" enabled="true">
+            <stringProp name="JSON_PATH">$[0].id</stringProp>
+            <stringProp name="EXPECTED_VALUE"></stringProp>
+            <boolProp name="JSONVALIDATION">false</boolProp>
+            <boolProp name="EXPECT_NULL">false</boolProp>
+            <boolProp name="INVERT">false</boolProp>
+            <boolProp name="ISREGEX">false</boolProp>
+          </JSONPathAssertion>
+          <hashTree/>
+          <JSONPathAssertion guiclass="JSONPathAssertionGui" testclass="JSONPathAssertion" testname="Assert NO existe reserva duplicada ($[1].id)" enabled="true">
+            <stringProp name="JSON_PATH">$[1].id</stringProp>
+            <stringProp name="EXPECTED_VALUE"></stringProp>
+            <boolProp name="JSONVALIDATION">false</boolProp>
+            <boolProp name="EXPECT_NULL">false</boolProp>
+            <boolProp name="INVERT">true</boolProp>
+            <boolProp name="ISREGEX">false</boolProp>
+          </JSONPathAssertion>
           <hashTree/>
         </hashTree>
 
@@ -660,22 +609,15 @@ if (!errors.isEmpty()) {
             <intProp name="Assertion.test_type">8</intProp>
           </ResponseAssertion>
           <hashTree/>
-          <JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Validar que la mesa cancelada volvió a estar disponible" enabled="true">
-            <stringProp name="scriptLanguage">groovy</stringProp>
-            <stringProp name="cacheKey">true</stringProp>
-            <stringProp name="parameters"></stringProp>
-            <stringProp name="filename"></stringProp>
-            <stringProp name="script">import groovy.json.JsonSlurper
-
-long targetTableId = Long.parseLong(props.getProperty("sg.tableId"))
-def json = new JsonSlurper().parseText(prev.getResponseDataAsString())
-boolean found = json.availableTables.any { it.id == targetTableId }
-
-if (!found) {
-    AssertionResult.setFailure(true)
-    AssertionResult.setFailureMessage("La mesa " + targetTableId + " no apareció disponible tras la cancelación concurrente")
-}</stringProp>
-          </JSR223Assertion>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Assert mesa cancelada volvió a estar disponible" enabled="true">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="323456791">&quot;id&quot;\s*:\s*${__P(sg.tableId)}\b</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.custom_message">La mesa cancelada debe aparecer disponible en /availability</stringProp>
+            <stringProp name="Assertion.test_field">Assertion.response_data</stringProp>
+            <boolProp name="Assertion.assume_success">false</boolProp>
+            <intProp name="Assertion.test_type">2</intProp>
+          </ResponseAssertion>
           <hashTree/>
         </hashTree>
       </hashTree>

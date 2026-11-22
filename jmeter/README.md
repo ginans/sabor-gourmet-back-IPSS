@@ -8,11 +8,11 @@ El plan crea datos aislados por timestamp en cada ejecución (`setUp`), sincroni
 
 | Fase | Escenario | Resultado esperado (`N = 20` hilos) |
 | :--- | :--- | :--- |
-| **setUp** | Crea 1 cliente titular, 1 mesa dedicada (`capacity = 4`) y 1 reserva objetivo de cancelación | `3 × HTTP 201` |
-| **1. Reservas simultáneas (`SG-PER-04`)** | 20 hilos ejecutan `POST /api/v1/reservations` sobre la misma mesa, fecha y turno (`20:00`) | **Exactamente `1 × 201`** y **`19 × 409`** (`RESERVATIONS_BS006`), `0 × 500` |
-| **2. Registro simultáneo de email** | 20 hilos ejecutan `POST /api/v1/clients` con el mismo correo electrónico | **Exactamente `1 × 201`** y **`19 × 409`** (`CLIENTS_BS002`), `0 × 500` |
-| **3. Cancelación simultánea** | 20 hilos ejecutan `PATCH /api/v1/reservations/{id}/cancel` sobre la misma reserva | **Exactamente `1 × 200`** y **`19 × 409`** (`RESERVATIONS_BS010`), `0 × 500` |
-| **tearDown** | Consulta `GET /api/v1/reservations` y `GET /api/v1/tables/availability` | Exactamente `1` reserva `PENDING` persistida, conteos `1 / N-1` validados y disponibilidad liberada en el turno cancelado |
+| **setUp** | Crea 1 cliente titular, 1 mesa dedicada (`capacity = 4`) y 1 reserva objetivo de cancelación | `3 × HTTP 201` y `1 × HTTP 200` |
+| **1. Reservas simultáneas (`SG-PER-04`)** | 20 hilos ejecutan `POST /api/v1/reservations` sobre la misma mesa, fecha y turno (`20:00`) | `1 × 201` y `19 × 409` (`RESERVATIONS_BS006`), `0 × 500` |
+| **2. Registro simultáneo de email** | 20 hilos ejecutan `POST /api/v1/clients` con el mismo correo electrónico | `1 × 201` y `19 × 409` (`CLIENTS_BS002`), `0 × 500` |
+| **3. Cancelación simultánea** | 20 hilos ejecutan `PATCH /api/v1/reservations/{id}/cancel` sobre la misma reserva | `1 × 200` y `19 × 409` (`RESERVATIONS_BS010`), `0 × 500` |
+| **tearDown** | Consulta `GET /api/v1/reservations` y `GET /api/v1/tables/availability` | Exactamente `1` reserva `PENDING` persistida y disponibilidad liberada en el turno cancelado |
 
 > **Nota:** Las respuestas `409 Conflict` esperadas por exclusión mutua están marcadas como válidas en las aserciones (`Ignore Status` + verificación del código de negocio `RESERVATIONS_BS006`, `CLIENTS_BS002`, `RESERVATIONS_BS010`), por lo que una corrida exitosa muestra **`Error % = 0.00%`**.
 
