@@ -1,13 +1,13 @@
 package cl.ipss.saborgourmet.dto.error;
 
 /**
- * High-level classification of API errors returned by {@code GlobalExceptionHandler}.
+ * Clasificación de alto nivel de los errores devueltos por {@code GlobalExceptionHandler}.
  */
 public enum ErrorCategory {
-    /** Request payload, query parameter, or HTTP syntax validation error. */
+    /** Error de validación de cuerpo, parámetros o sintaxis HTTP. */
     VALIDATION,
-    /** Domain or business rule violation (not found, conflict, invalid state). */
+    /** Violación de regla de dominio (recurso inexistente, conflicto o estado inválido). */
     BUSINESS,
-    /** Storage, I/O, or unexpected internal infrastructure error. */
+    /** Error interno de almacenamiento, E/S o infraestructura. */
     INFRASTRUCTURE
 }

@@ -8,6 +8,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+/**
+ * Representa una reserva de mesa vinculada por {@code clientId} y {@code tableId} sin redundancia en JSON.
+ */
 @Getter
 @Setter
 @NoArgsConstructor

@@ -10,6 +10,10 @@ dependency-reduced-pom.xml
 # Temporary storage files
 data/*.tmp
 
+# JMeter generated test artifacts
+jmeter/results.jtl
+jmeter/report/
+
 # IDE & OS files
 .idea/
 *.iml

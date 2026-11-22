@@ -5,7 +5,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 
 /**
- * Main entry point for the Sabor Gourmet restaurant reservation REST API.
+ * Punto de entrada principal de la API REST de reservas del restaurante Sabor Gourmet.
  */
 @SpringBootApplication
 @ConfigurationPropertiesScan

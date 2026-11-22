@@ -1,19 +1,40 @@
 package cl.ipss.saborgourmet.service;
 
 import cl.ipss.saborgourmet.config.ReservationProperties;
-import cl.ipss.saborgourmet.dto.reservation.*;
+import cl.ipss.saborgourmet.dto.reservation.AvailabilityResponse;
+import cl.ipss.saborgourmet.dto.reservation.AvailableTableResponse;
+import cl.ipss.saborgourmet.dto.reservation.ReservationRequest;
+import cl.ipss.saborgourmet.dto.reservation.ReservationResponse;
 import cl.ipss.saborgourmet.exception.ErrorCode;
-import cl.ipss.saborgourmet.exception.business.*;
-import cl.ipss.saborgourmet.model.*;
-import cl.ipss.saborgourmet.repository.*;
-import java.time.*;
+import cl.ipss.saborgourmet.exception.business.BusinessConflictException;
+import cl.ipss.saborgourmet.exception.business.BusinessRuleException;
+import cl.ipss.saborgourmet.exception.business.ResourceNotFoundException;
+import cl.ipss.saborgourmet.model.Client;
+import cl.ipss.saborgourmet.model.ClientStatus;
+import cl.ipss.saborgourmet.model.Reservation;
+import cl.ipss.saborgourmet.model.ReservationStatus;
+import cl.ipss.saborgourmet.model.RestaurantTable;
+import cl.ipss.saborgourmet.repository.ClientRepository;
+import cl.ipss.saborgourmet.repository.ReservationRepository;
+import cl.ipss.saborgourmet.repository.StorageTransactionManager;
+import cl.ipss.saborgourmet.repository.TableRepository;
+import java.time.Clock;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+/**
+ * Servicio de negocio para disponibilidad y ciclo de vida de reservas:
+ * turnos, ocupación mínima del 75%, solapamiento, confirmación y cancelación tardía.
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -26,6 +47,9 @@ public class ReservationService {
     private final ReservationProperties properties;
     private final Clock clock;
 
+    /**
+     * Lista reservas aplicando filtros opcionales acumulativos por fecha, estado, cliente y mesa.
+     */
     public List<ReservationResponse> findAll(
             LocalDate date,
             ReservationStatus status,
@@ -36,23 +60,40 @@ public class ReservationService {
                 .filter(item -> status == null || item.getStatus() == status)
                 .filter(item -> clientId == null || Objects.equals(item.getClientId(), clientId))
                 .filter(item -> tableId == null || Objects.equals(item.getTableId(), tableId))
+                .sorted(Comparator.comparing(Reservation::getDate, Comparator.nullsLast(LocalDate::compareTo))
+                        .thenComparing(Reservation::getStartTime, Comparator.nullsLast(LocalTime::compareTo))
+                        .thenComparing(Reservation::getId, Comparator.nullsLast(Long::compareTo)))
                 .map(ReservationResponse::from)
                 .toList());
     }
 
+    /**
+     * Obtiene una reserva por su identificador único o lanza 404 si no existe.
+     */
     public ReservationResponse findById(Long id) {
         return transactionManager.executeRead(() -> ReservationResponse.from(loadReservation(id)));
     }
 
+    /**
+     * Consulta mesas disponibles leyendo las reservas de la fecha una sola vez (sin N+1).
+     */
     public AvailabilityResponse checkAvailability(LocalDate date, LocalTime startTime, int guestCount) {
         LocalTime endTime = resolveAndValidateEndTime(date, startTime);
 
         return transactionManager.executeRead(() -> {
+            Map<Long, List<Reservation>> activeByTable = reservationRepository.findByDate(date).stream()
+                    .filter(existing -> existing.getStatus() != null && existing.getStatus().isActive())
+                    .collect(Collectors.groupingBy(Reservation::getTableId));
+
             List<AvailableTableResponse> matchingTables = tableRepository.findAll().stream()
                     .filter(RestaurantTable::isActive)
                     .filter(table -> guestCount <= table.getCapacity())
                     .filter(table -> guestCount >= properties.calculateMinimumGuests(table.getCapacity()))
-                    .filter(table -> !overlapsExistingActive(table.getId(), date, startTime, endTime, null))
+                    .filter(table -> !overlapsAny(
+                            activeByTable.getOrDefault(table.getId(), List.of()),
+                            startTime,
+                            endTime,
+                            null))
                     .sorted(Comparator.comparingInt(RestaurantTable::getCapacity)
                             .thenComparingInt(RestaurantTable::getNumber))
                     .map(table -> AvailableTableResponse.from(
@@ -65,8 +106,8 @@ public class ReservationService {
     }
 
     /**
-     * Runs eligibility checks, slot overlap validation, and persistence inside the write lock
-     * so concurrent requests for the same table and slot resolve without double booking.
+     * Crea una reserva en estado {@code PENDING} dentro del {@code writeLock} exclusivo
+     * para evitar reservas duplicadas ante peticiones concurrentes sobre la misma mesa y turno.
      */
     public ReservationResponse create(ReservationRequest request) {
         LocalTime endTime = resolveAndValidateEndTime(request.date(), request.startTime());
@@ -97,6 +138,10 @@ public class ReservationService {
         });
     }
 
+    /**
+     * Modifica una reserva vigente futura sin permitir cambiar su titular ({@code clientId})
+     * ni alterar reservas canceladas o ya iniciadas.
+     */
     public ReservationResponse update(Long id, ReservationRequest request) {
         LocalTime endTime = resolveAndValidateEndTime(request.date(), request.startTime());
 
@@ -105,15 +150,25 @@ public class ReservationService {
             if (existing.getStatus() == ReservationStatus.CANCELLED) {
                 throw new BusinessConflictException(ErrorCode.RESERVATION_CANCELLED_IMMUTABLE);
             }
+            assertReservationNotStarted(existing);
+            if (!Objects.equals(existing.getClientId(), request.clientId())) {
+                throw new BusinessConflictException(ErrorCode.RESERVATION_CLIENT_IMMUTABLE);
+            }
+            boolean isRescheduling = !Objects.equals(existing.getDate(), request.date())
+                    || !Objects.equals(existing.getStartTime(), request.startTime());
+            if (isRescheduling && isWithinLateCancellationWindow(existing, LocalDateTime.now(clock))) {
+                throw new BusinessConflictException(
+                        ErrorCode.RESERVATION_LATE_MODIFICATION_BLOCKED,
+                        properties.cancellationNoticeHours());
+            }
 
-            assertClientCanBook(request.clientId());
+            assertClientCanBook(existing.getClientId());
             RestaurantTable table = assertTableFitsGuests(request.tableId(), request.guestCount());
 
             if (overlapsExistingActive(table.getId(), request.date(), request.startTime(), endTime, id)) {
                 throw new BusinessConflictException(ErrorCode.RESERVATION_TIME_OVERLAP);
             }
 
-            existing.setClientId(request.clientId());
             existing.setTableId(request.tableId());
             existing.setDate(request.date());
             existing.setStartTime(request.startTime());
@@ -128,6 +183,9 @@ public class ReservationService {
         });
     }
 
+    /**
+     * Confirma una reserva pendiente futura (puede ser invocado por cliente o personal).
+     */
     public ReservationResponse confirm(Long id) {
         return transactionManager.executeWrite(() -> {
             Reservation existing = loadReservation(id);
@@ -137,6 +195,8 @@ public class ReservationService {
             if (existing.getStatus() == ReservationStatus.CANCELLED) {
                 throw new BusinessConflictException(ErrorCode.RESERVATION_CANNOT_CONFIRM_CANCELLED);
             }
+            assertReservationNotStarted(existing);
+            assertClientCanBook(existing.getClientId());
 
             existing.setStatus(ReservationStatus.CONFIRMED);
             Reservation saved = reservationRepository.save(existing);
@@ -145,12 +205,17 @@ public class ReservationService {
         });
     }
 
+    /**
+     * Cancela una reserva futura, libera la mesa y registra un strike por cancelación tardía
+     * (&lt; 24h) dentro de la misma unidad de trabajo atómica.
+     */
     public ReservationResponse cancel(Long id) {
         return transactionManager.executeWrite(() -> {
             Reservation existing = loadReservation(id);
             if (existing.getStatus() == ReservationStatus.CANCELLED) {
                 throw new BusinessConflictException(ErrorCode.RESERVATION_ALREADY_CANCELLED);
             }
+            assertReservationNotStarted(existing);
 
             existing.setStatus(ReservationStatus.CANCELLED);
             Reservation saved = reservationRepository.save(existing);
@@ -168,16 +233,17 @@ public class ReservationService {
             throw new BusinessRuleException(ErrorCode.RESERVATION_IN_THE_PAST);
         }
 
-        LocalDateTime computedEnd = requestedStart.plusMinutes(properties.turnDurationMinutes());
-        LocalDateTime closingLimit = LocalDateTime.of(date, properties.closingTime());
-        if (startTime.isBefore(properties.openingTime()) || computedEnd.isAfter(closingLimit)) {
+        LocalDateTime epochStart = LocalDateTime.of(LocalDate.EPOCH, startTime);
+        LocalDateTime epochEnd = epochStart.plusMinutes(properties.turnDurationMinutes());
+        LocalDateTime epochClosing = LocalDateTime.of(LocalDate.EPOCH, properties.closingTime());
+        if (startTime.isBefore(properties.openingTime()) || epochEnd.isAfter(epochClosing)) {
             throw new BusinessRuleException(
                     ErrorCode.RESERVATION_OUTSIDE_BUSINESS_HOURS,
                     properties.openingTime(),
                     properties.closingTime()
             );
         }
-        return computedEnd.toLocalTime();
+        return epochEnd.toLocalTime();
     }
 
     private void assertClientCanBook(Long clientId) {
@@ -206,9 +272,17 @@ public class ReservationService {
         return table;
     }
 
+    private void assertReservationNotStarted(Reservation reservation) {
+        LocalDateTime now = LocalDateTime.now(clock);
+        LocalDateTime reservationStart = LocalDateTime.of(reservation.getDate(), reservation.getStartTime());
+        if (!reservationStart.isAfter(now)) {
+            throw new BusinessConflictException(ErrorCode.RESERVATION_PAST_IMMUTABLE);
+        }
+    }
+
     /**
-     * Checks half-open interval intersection [startA, endA) against [startB, endB),
-     * allowing back-to-back contiguous slots on the same table.
+     * Evalúa solapamiento en intervalos semiabiertos [startA, endA) vs [startB, endB),
+     * permitiendo turnos contiguos en la misma mesa.
      */
     private boolean overlapsExistingActive(
             Long tableId,
@@ -216,7 +290,19 @@ public class ReservationService {
             LocalTime requestedStart,
             LocalTime requestedEnd,
             Long excludedId) {
-        return reservationRepository.findByTableIdAndDate(tableId, date).stream()
+        return overlapsAny(
+                reservationRepository.findByTableIdAndDate(tableId, date),
+                requestedStart,
+                requestedEnd,
+                excludedId);
+    }
+
+    private boolean overlapsAny(
+            List<Reservation> candidates,
+            LocalTime requestedStart,
+            LocalTime requestedEnd,
+            Long excludedId) {
+        return candidates.stream()
                 .filter(existing -> !Objects.equals(existing.getId(), excludedId))
                 .filter(existing -> existing.getStatus() != null && existing.getStatus().isActive())
                 .anyMatch(existing -> requestedStart.isBefore(existing.getEndTime())
@@ -224,11 +310,7 @@ public class ReservationService {
     }
 
     private void recordLateCancellationStrikeIfNeeded(Reservation cancelled) {
-        LocalDateTime now = LocalDateTime.now(clock);
-        LocalDateTime startDateTime = LocalDateTime.of(cancelled.getDate(), cancelled.getStartTime());
-        LocalDateTime freeCancellationDeadline = startDateTime.minusHours(properties.cancellationNoticeHours());
-
-        if (now.isBefore(freeCancellationDeadline)) {
+        if (!isWithinLateCancellationWindow(cancelled, LocalDateTime.now(clock))) {
             return;
         }
 
@@ -245,6 +327,12 @@ public class ReservationService {
                     }
                     clientRepository.save(client);
                 });
+    }
+
+    private boolean isWithinLateCancellationWindow(Reservation reservation, LocalDateTime now) {
+        LocalDateTime startDateTime = LocalDateTime.of(reservation.getDate(), reservation.getStartTime());
+        LocalDateTime freeCancellationDeadline = startDateTime.minusHours(properties.cancellationNoticeHours());
+        return now.isAfter(freeCancellationDeadline);
     }
 
     private Reservation loadReservation(Long id) {

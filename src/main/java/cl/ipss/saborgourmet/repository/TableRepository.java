@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Persistence contract for {@link RestaurantTable} entities, decoupled from the underlying storage engine.
+ * Contrato de persistencia para mesas, desacoplado del motor de almacenamiento subyacente.
  */
 public interface TableRepository {
 

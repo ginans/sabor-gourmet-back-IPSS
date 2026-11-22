@@ -3,6 +3,9 @@ package cl.ipss.saborgourmet.dto.common;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import java.util.List;
 
+/**
+ * Respuesta liviana de confirmación sin datos personales (PII), con soporte opcional de campos actualizados.
+ */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record OperationResponse(
         Long id,

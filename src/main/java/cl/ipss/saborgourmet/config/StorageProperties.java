@@ -5,9 +5,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 
 /**
- * Externalized configuration properties for the JSON persistence layer.
+ * Propiedades externalizadas para la capa de persistencia en archivo JSON.
  *
- * @param filePath relative or absolute path to the JSON storage file
+ * @param filePath ruta relativa o absoluta del archivo JSON de almacenamiento
  */
 @Validated
 @ConfigurationProperties(prefix = "app.storage")

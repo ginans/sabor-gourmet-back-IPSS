@@ -5,6 +5,7 @@ import cl.ipss.saborgourmet.config.StorageProperties;
 import cl.ipss.saborgourmet.exception.infrastructure.DataStorageException;
 import cl.ipss.saborgourmet.model.RestaurantData;
 import cl.ipss.saborgourmet.repository.StorageTransactionManager;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
 import java.io.IOException;
@@ -12,32 +13,43 @@ import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 /**
- * Thread-safe JSON file storage engine backed by Jackson, atomic file replacement,
- * and a fair {@link ReentrantReadWriteLock} to guarantee concurrent consistency
- * within a single JVM instance.
+ * Motor de persistencia en archivo JSON con soporte de unidad de trabajo por hilo,
+ * escritura atómica (.tmp -> Files.move) y sincronización local mediante
+ * {@link ReentrantReadWriteLock} en modo justo (fair).
+ *
+ * <p>Dentro de una misma operación {@code executeRead} o {@code executeWrite}, el archivo
+ * se lee una sola vez (evitando lecturas N+1) y las mutaciones sobre múltiples entidades
+ * se persisten en un único volcado atómico al finalizar sin errores.</p>
  */
 @Slf4j
 @Component
 public class JsonFileStorage implements StorageTransactionManager {
 
     private final Path storagePath;
-    private final ObjectMapper objectMapper;
+    private final ObjectMapper storageObjectMapper;
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock(true);
+    private final ThreadLocal<ReadSession> readSession = new ThreadLocal<>();
+    private final ThreadLocal<WriteSession> writeSession = new ThreadLocal<>();
 
     public JsonFileStorage(StorageProperties storageProperties, ObjectMapper objectMapper) {
         this.storagePath = Path.of(storageProperties.filePath()).toAbsolutePath().normalize();
-        this.objectMapper = objectMapper;
+        this.storageObjectMapper = objectMapper.copy()
+                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     }
 
     /**
-     * Ensures the JSON storage file exists with a valid empty structure on application startup.
+     * Garantiza que el archivo JSON exista con estructura inicial válida al arrancar la aplicación.
      */
     @PostConstruct
     public void initialize() {
@@ -51,80 +63,127 @@ public class JsonFileStorage implements StorageTransactionManager {
 
     @Override
     public <T> T executeRead(Supplier<T> action) {
+        if (writeSession.get() != null || readSession.get() != null) {
+            return action.get();
+        }
+
         lock.readLock().lock();
         try {
+            RestaurantData snapshot = Files.exists(storagePath) ? readFromDisk() : new RestaurantData();
+            readSession.set(new ReadSession(snapshot));
             return action.get();
         } finally {
+            readSession.remove();
             lock.readLock().unlock();
         }
     }
 
     @Override
     public <T> T executeWrite(Supplier<T> action) {
+        if (readSession.get() != null) {
+            throw new IllegalStateException("Cannot upgrade an active read transaction to a write transaction.");
+        }
+        if (writeSession.get() != null) {
+            return action.get();
+        }
+
         lock.writeLock().lock();
         try {
-            return action.get();
+            ensureFileExistsUnderWriteLock();
+            WriteSession session = new WriteSession(readFromDisk());
+            writeSession.set(session);
+            T result = action.get();
+            if (session.dirty) {
+                writeAtomically(session.data);
+            }
+            return result;
         } finally {
+            writeSession.remove();
             lock.writeLock().unlock();
         }
     }
 
     @Override
     public void executeWrite(Runnable action) {
-        lock.writeLock().lock();
-        try {
+        executeWrite(() -> {
             action.run();
-        } finally {
-            lock.writeLock().unlock();
-        }
+            return null;
+        });
     }
 
-    /**
-     * Reads the current JSON snapshot under a shared read lock.
-     *
-     * @param reader function extracting the desired result from {@link RestaurantData}
-     * @param <T>    return type
-     * @return extracted result
-     */
     public <T> T readData(Function<RestaurantData, T> reader) {
-        lock.readLock().lock();
-        boolean readLocked = true;
-        try {
-            if (!Files.exists(storagePath)) {
-                lock.readLock().unlock();
-                readLocked = false;
-                initialize();
-                lock.readLock().lock();
-                readLocked = true;
-            }
-            RestaurantData data = readFromDisk();
-            return reader.apply(data);
-        } finally {
-            if (readLocked) {
-                lock.readLock().unlock();
-            }
+        WriteSession activeWrite = writeSession.get();
+        if (activeWrite != null) {
+            return reader.apply(activeWrite.data);
         }
+        ReadSession activeRead = readSession.get();
+        if (activeRead != null) {
+            return reader.apply(activeRead.data);
+        }
+        return executeRead(() -> reader.apply(readSession.get().data));
+    }
+
+    public <T> T mutateData(Function<RestaurantData, T> mutator) {
+        WriteSession activeWrite = writeSession.get();
+        if (activeWrite != null) {
+            T result = mutator.apply(activeWrite.data);
+            activeWrite.dirty = true;
+            return result;
+        }
+        return executeWrite(() -> {
+            WriteSession session = writeSession.get();
+            T result = mutator.apply(session.data);
+            session.dirty = true;
+            return result;
+        });
     }
 
     /**
-     * Mutates the JSON snapshot under an exclusive write lock and persists it atomically.
-     * If either the mutator or disk write fails, existing file contents remain intact.
-     *
-     * @param mutator function modifying {@link RestaurantData} and returning a result
-     * @param <T>     return type
-     * @return mutation result
+     * Ejecuta una mutación condicional marcando la sesión como sucia únicamente si modificó datos.
      */
-    public <T> T mutateData(Function<RestaurantData, T> mutator) {
-        lock.writeLock().lock();
-        try {
-            ensureFileExistsUnderWriteLock();
-            RestaurantData data = readFromDisk();
-            T result = mutator.apply(data);
-            writeAtomically(data);
-            return result;
-        } finally {
-            lock.writeLock().unlock();
+    public boolean mutateIfChanged(Function<RestaurantData, Boolean> mutator) {
+        WriteSession activeWrite = writeSession.get();
+        if (activeWrite != null) {
+            boolean changed = Boolean.TRUE.equals(mutator.apply(activeWrite.data));
+            if (changed) {
+                activeWrite.dirty = true;
+            }
+            return changed;
         }
+        return executeWrite(() -> {
+            WriteSession session = writeSession.get();
+            boolean changed = Boolean.TRUE.equals(mutator.apply(session.data));
+            if (changed) {
+                session.dirty = true;
+            }
+            return changed;
+        });
+    }
+
+    /**
+     * Inserta o reemplaza una entidad dentro de una lista del almacén asignando un ID único
+     * proveniente de su secuencia persistente cuando la entidad es nueva.
+     */
+    static <E> E upsert(
+            List<E> collection,
+            E entityCopy,
+            Function<E, Long> idGetter,
+            BiConsumer<E, Long> idSetter,
+            LongSupplier idAllocator) {
+        Long id = idGetter.apply(entityCopy);
+        if (id == null) {
+            idSetter.accept(entityCopy, idAllocator.getAsLong());
+            collection.add(entityCopy);
+            return entityCopy;
+        }
+        for (int i = 0; i < collection.size(); i++) {
+            if (Objects.equals(idGetter.apply(collection.get(i)), id)) {
+                collection.set(i, entityCopy);
+                return entityCopy;
+            }
+        }
+        collection.add(entityCopy);
+        return entityCopy;
     }
 
     public Path getStoragePath() {
@@ -152,7 +211,7 @@ public class JsonFileStorage implements StorageTransactionManager {
             if (Files.size(storagePath) == 0) {
                 return new RestaurantData();
             }
-            RestaurantData loaded = objectMapper.readValue(storagePath.toFile(), RestaurantData.class);
+            RestaurantData loaded = storageObjectMapper.readValue(storagePath.toFile(), RestaurantData.class);
             return loaded != null ? loaded : new RestaurantData();
         } catch (IOException ex) {
             throw new DataStorageException("Failed to read JSON storage file: " + storagePath, ex);
@@ -167,7 +226,7 @@ public class JsonFileStorage implements StorageTransactionManager {
             if (parent != null) {
                 Files.createDirectories(parent);
             }
-            objectMapper.writerWithDefaultPrettyPrinter().writeValue(tempPath.toFile(), data);
+            storageObjectMapper.writeValue(tempPath.toFile(), data);
             try {
                 Files.move(tempPath, storagePath, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
             } catch (AtomicMoveNotSupportedException ex) {
@@ -184,6 +243,23 @@ public class JsonFileStorage implements StorageTransactionManager {
             Files.deleteIfExists(tempPath);
         } catch (IOException cleanupEx) {
             log.warn("Could not delete temporary storage file {}: {}", tempPath, cleanupEx.getMessage());
+        }
+    }
+
+    private static final class ReadSession {
+        private final RestaurantData data;
+
+        private ReadSession(RestaurantData data) {
+            this.data = data;
+        }
+    }
+
+    private static final class WriteSession {
+        private final RestaurantData data;
+        private boolean dirty;
+
+        private WriteSession(RestaurantData data) {
+            this.data = data;
         }
     }
 }

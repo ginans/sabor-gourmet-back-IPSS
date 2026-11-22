@@ -5,6 +5,9 @@ import cl.ipss.saborgourmet.model.ReservationStatus;
 import java.time.LocalDate;
 import java.time.LocalTime;
 
+/**
+ * Representación de lectura de una reserva vinculada por {@code clientId} y {@code tableId}.
+ */
 public record ReservationResponse(
         Long id,
         Long clientId,

@@ -7,7 +7,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * OpenAPI 3 / Swagger UI metadata configuration for the Sabor Gourmet API.
+ * Configuración de metadatos OpenAPI 3 / Swagger UI para la API Sabor Gourmet.
  */
 @Configuration
 public class OpenApiConfig {

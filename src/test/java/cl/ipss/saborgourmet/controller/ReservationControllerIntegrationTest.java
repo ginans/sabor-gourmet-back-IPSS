@@ -1,8 +1,12 @@
 package cl.ipss.saborgourmet.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import cl.ipss.saborgourmet.config.ApiConstants;
 import cl.ipss.saborgourmet.exception.ErrorCode;
@@ -11,10 +15,17 @@ import cl.ipss.saborgourmet.model.ReservationStatus;
 import cl.ipss.saborgourmet.repository.json.JsonFileStorage;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.net.URI;
 import java.nio.file.Files;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
-import java.util.concurrent.*;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -173,15 +184,21 @@ class ReservationControllerIntegrationTest {
     void threeLateCancellationsBanClientEndToEnd() throws Exception {
         Long clientId = createClient("Pedro Late", "pedro@correo.cl", "+56977777777");
         Long tableId = createTable(1, 4, "Main Hall");
-        LocalDate within24hDate = java.time.LocalTime.now().isBefore(java.time.LocalTime.of(20, 0))
-                ? LocalDate.now()
-                : LocalDate.now().plusDays(1);
-        String within24hTime = java.time.LocalTime.now().isBefore(java.time.LocalTime.of(20, 0))
-                ? "21:00"
-                : "12:00";
+
+        LocalDateTime snapshotNow = LocalDateTime.now();
+        boolean useTodayEvening = snapshotNow.toLocalTime().isBefore(LocalTime.of(20, 0));
+        LocalDate within24hDate = useTodayEvening ? snapshotNow.toLocalDate() : snapshotNow.toLocalDate().plusDays(1);
+        String within24hTime = useTodayEvening ? "21:00" : "12:00";
 
         for (int i = 0; i < 3; i++) {
             Long resId = createReservation(clientId, tableId, within24hDate, within24hTime, 3);
+            if (i == 0) {
+                mockMvc.perform(put(ApiConstants.RESERVATIONS_PATH + "/" + resId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(bookingPayload(clientId, tableId, futureDate, "20:00", 3)))
+                        .andExpect(status().isConflict())
+                        .andExpect(jsonPath("$.code").value(ErrorCode.RESERVATION_LATE_MODIFICATION_BLOCKED.getCode()));
+            }
             mockMvc.perform(patch(ApiConstants.RESERVATIONS_PATH + "/" + resId + "/cancel"))
                     .andExpect(status().isOk());
         }
@@ -196,6 +213,69 @@ class ReservationControllerIntegrationTest {
                         .content(bookingPayload(clientId, tableId, futureDate, "20:00", 3)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value(ErrorCode.CLIENT_NOT_ACTIVE.getCode()));
+
+        mockMvc.perform(patch(ApiConstants.CLIENTS_PATH + "/" + clientId + "/status")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "status": "ACTIVE" }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.updatedFields[0]").value("status"))
+                .andExpect(jsonPath("$.updatedFields[1]").value("lateCancellations"));
+
+        mockMvc.perform(get(ApiConstants.CLIENTS_PATH + "/" + clientId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value(ClientStatus.ACTIVE.name()))
+                .andExpect(jsonPath("$.lateCancellations").value(0));
+    }
+
+    @Test
+    @DisplayName("Regression: Availability query error strips method name prefix and negative IDs return 400")
+    void constraintViolationsStripInternalMethodNameAndRejectNegativeIds() throws Exception {
+        mockMvc.perform(get(ApiConstants.TABLES_PATH + "/availability")
+                        .param("date", futureDate.toString())
+                        .param("time", "20:00")
+                        .param("guests", "0"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.guests").exists())
+                .andExpect(jsonPath("$.fieldErrors['checkAvailability.guests']").doesNotExist());
+
+        mockMvc.perform(post(ApiConstants.RESERVATIONS_PATH)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(bookingPayload(-1L, -2L, futureDate, "20:00", 3)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.clientId").exists())
+                .andExpect(jsonPath("$.fieldErrors.tableId").exists());
+
+        mockMvc.perform(get(ApiConstants.RESERVATIONS_PATH)
+                        .param("clientId", "-1")
+                        .param("tableId", "-5"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.clientId").exists())
+                .andExpect(jsonPath("$.fieldErrors.tableId").exists());
+
+        mockMvc.perform(get(ApiConstants.TABLES_PATH + "/availability")
+                        .param("date", LocalDate.MAX.toString())
+                        .param("time", "22:30")
+                        .param("guests", "2"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.category").value("BUSINESS"))
+                .andExpect(jsonPath("$.code").value(ErrorCode.RESERVATION_OUTSIDE_BUSINESS_HOURS.getCode()));
+
+        mockMvc.perform(post(ApiConstants.RESERVATIONS_PATH)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(bookingPayload(1L, 1L, LocalDate.MAX, "22:30", 2)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.category").value("BUSINESS"))
+                .andExpect(jsonPath("$.code").value(ErrorCode.RESERVATION_OUTSIDE_BUSINESS_HOURS.getCode()));
+
+        mockMvc.perform(get(URI.create(ApiConstants.RESERVATIONS_PATH + "/%20")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(ErrorCode.INVALID_PARAMETER_TYPE.getCode()));
+
+        mockMvc.perform(patch(URI.create(ApiConstants.RESERVATIONS_PATH + "/%20/cancel")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(ErrorCode.INVALID_PARAMETER_TYPE.getCode()));
     }
 
     private Long createClient(String name, String email, String phone) throws Exception {

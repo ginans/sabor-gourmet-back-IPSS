@@ -6,7 +6,8 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Persistence contract for {@link Reservation} entities, decoupled from the underlying storage engine.
+ * Contrato de persistencia para reservas de mesas.
+ * Las reservas siguen un ciclo de estados y se cancelan sin eliminarse físicamente.
  */
 public interface ReservationRepository {
 
@@ -20,7 +21,7 @@ public interface ReservationRepository {
 
     List<Reservation> findByTableIdAndDate(Long tableId, LocalDate date);
 
-    Reservation save(Reservation reservation);
+    List<Reservation> findByDate(LocalDate date);
 
-    boolean deleteById(Long id);
+    Reservation save(Reservation reservation);
 }

@@ -1,12 +1,14 @@
 package cl.ipss.saborgourmet.exception;
 
 import cl.ipss.saborgourmet.dto.error.ErrorCategory;
+import lombok.Getter;
 import org.springframework.http.HttpStatus;
 
 /**
- * Centralized catalog of structured API error codes, default messages,
- * error categories, and HTTP statuses to eliminate hardcoded error literals.
+ * Catálogo centralizado de códigos de error, plantillas de mensajes, categorías
+ * y códigos de estado HTTP devueltos por la API REST.
  */
+@Getter
 public enum ErrorCode {
 
     VALIDATION_FAILED(
@@ -51,6 +53,18 @@ public enum ErrorCode {
             ErrorCategory.VALIDATION,
             HttpStatus.METHOD_NOT_ALLOWED
     ),
+    UNSUPPORTED_MEDIA_TYPE(
+            "VALIDATION_VL008",
+            "Content-Type '%s' is not supported. Use 'application/json'.",
+            ErrorCategory.VALIDATION,
+            HttpStatus.UNSUPPORTED_MEDIA_TYPE
+    ),
+    NOT_ACCEPTABLE(
+            "VALIDATION_VL009",
+            "Requested media type in Accept header is not supported.",
+            ErrorCategory.VALIDATION,
+            HttpStatus.NOT_ACCEPTABLE
+    ),
 
     CLIENT_NOT_FOUND(
             "CLIENTS_BS001",
@@ -88,6 +102,18 @@ public enum ErrorCode {
             ErrorCategory.BUSINESS,
             HttpStatus.CONFLICT
     ),
+    CLIENT_BANNED_DELETE_BLOCKED(
+            "CLIENTS_BS007",
+            "Banned clients cannot be deleted directly. Lift the ban before deleting this client.",
+            ErrorCategory.BUSINESS,
+            HttpStatus.CONFLICT
+    ),
+    CLIENT_BANNED_UPDATE_BLOCKED(
+            "CLIENTS_BS008",
+            "Banned clients cannot be modified directly. Lift the ban before updating this client.",
+            ErrorCategory.BUSINESS,
+            HttpStatus.CONFLICT
+    ),
 
     TABLE_NOT_FOUND(
             "TABLES_BS001",
@@ -122,6 +148,12 @@ public enum ErrorCode {
     TABLE_INACTIVE(
             "TABLES_BS006",
             "The selected table is currently inactive.",
+            ErrorCategory.BUSINESS,
+            HttpStatus.CONFLICT
+    ),
+    TABLE_CAPACITY_MIN_OCCUPANCY_CONFLICT(
+            "TABLES_BS007",
+            "Cannot increase table capacity because active reservations would fall below minimum occupancy.",
             ErrorCategory.BUSINESS,
             HttpStatus.CONFLICT
     ),
@@ -186,6 +218,24 @@ public enum ErrorCode {
             ErrorCategory.BUSINESS,
             HttpStatus.CONFLICT
     ),
+    RESERVATION_PAST_IMMUTABLE(
+            "RESERVATIONS_BS011",
+            "Past or already started reservations cannot be modified, confirmed, or cancelled.",
+            ErrorCategory.BUSINESS,
+            HttpStatus.CONFLICT
+    ),
+    RESERVATION_CLIENT_IMMUTABLE(
+            "RESERVATIONS_BS012",
+            "The client owner of an existing reservation cannot be changed.",
+            ErrorCategory.BUSINESS,
+            HttpStatus.CONFLICT
+    ),
+    RESERVATION_LATE_MODIFICATION_BLOCKED(
+            "RESERVATIONS_BS013",
+            "Reservations starting within %d hours cannot be rescheduled to a different date or time.",
+            ErrorCategory.BUSINESS,
+            HttpStatus.CONFLICT
+    ),
 
     DATA_STORAGE_ERROR(
             "INFRA_IN001",
@@ -212,28 +262,6 @@ public enum ErrorCode {
         this.httpStatus = httpStatus;
     }
 
-    public String getCode() {
-        return code;
-    }
-
-    public String getMessageTemplate() {
-        return messageTemplate;
-    }
-
-    public ErrorCategory getCategory() {
-        return category;
-    }
-
-    public HttpStatus getHttpStatus() {
-        return httpStatus;
-    }
-
-    /**
-     * Formats the message template with optional arguments.
-     *
-     * @param args optional format parameters matching the template placeholders
-     * @return formatted human-readable error message
-     */
     public String formatMessage(Object... args) {
         if (args == null || args.length == 0) {
             return messageTemplate;

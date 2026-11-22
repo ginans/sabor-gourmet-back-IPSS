@@ -9,6 +9,9 @@ import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
+/**
+ * Implementación de {@link ReservationRepository} respaldada por {@link JsonFileStorage}.
+ */
 @Repository
 @RequiredArgsConstructor
 public class JsonReservationRepository implements ReservationRepository {
@@ -56,37 +59,21 @@ public class JsonReservationRepository implements ReservationRepository {
     }
 
     @Override
-    public Reservation save(Reservation reservation) {
-        return storage.mutateData(data -> {
-            List<Reservation> reservations = data.getReservations();
-            Reservation toPersist = reservation.copy();
-            if (toPersist.getId() == null) {
-                long nextId = reservations.stream()
-                        .mapToLong(existing -> existing.getId() != null ? existing.getId() : 0L)
-                        .max()
-                        .orElse(0L) + 1L;
-                toPersist.setId(nextId);
-                reservations.add(toPersist);
-            } else {
-                boolean replaced = false;
-                for (int i = 0; i < reservations.size(); i++) {
-                    if (Objects.equals(reservations.get(i).getId(), toPersist.getId())) {
-                        reservations.set(i, toPersist);
-                        replaced = true;
-                        break;
-                    }
-                }
-                if (!replaced) {
-                    reservations.add(toPersist);
-                }
-            }
-            return toPersist.copy();
-        });
+    public List<Reservation> findByDate(LocalDate date) {
+        return storage.readData(data -> data.getReservations().stream()
+                .filter(reservation -> Objects.equals(reservation.getDate(), date))
+                .map(Reservation::copy)
+                .toList());
     }
 
     @Override
-    public boolean deleteById(Long id) {
-        return storage.mutateData(data ->
-                data.getReservations().removeIf(reservation -> Objects.equals(reservation.getId(), id)));
+    public Reservation save(Reservation reservation) {
+        return storage.mutateData(data -> JsonFileStorage.upsert(
+                data.getReservations(),
+                reservation.copy(),
+                Reservation::getId,
+                Reservation::setId,
+                data::allocateReservationId
+        ).copy());
     }
 }

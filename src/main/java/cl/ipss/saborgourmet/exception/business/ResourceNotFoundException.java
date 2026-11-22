@@ -1,20 +1,14 @@
 package cl.ipss.saborgourmet.exception.business;
 
 import cl.ipss.saborgourmet.exception.ErrorCode;
+import org.springframework.http.HttpStatus;
 
 /**
- * Thrown when a requested domain resource does not exist (maps to HTTP 404 Not Found).
+ * Indica que el recurso de dominio solicitado no existe (HTTP 404 Not Found).
  */
-public class ResourceNotFoundException extends RuntimeException {
-
-    private final ErrorCode errorCode;
+public class ResourceNotFoundException extends DomainException {
 
     public ResourceNotFoundException(ErrorCode errorCode, Object... messageArgs) {
-        super(errorCode.formatMessage(messageArgs));
-        this.errorCode = errorCode;
-    }
-
-    public ErrorCode getErrorCode() {
-        return errorCode;
+        super(errorCode, HttpStatus.NOT_FOUND, messageArgs);
     }
 }

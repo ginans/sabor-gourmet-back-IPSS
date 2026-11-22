@@ -24,8 +24,12 @@ import cl.ipss.saborgourmet.model.ReservationStatus;
 import cl.ipss.saborgourmet.repository.ClientRepository;
 import cl.ipss.saborgourmet.repository.ReservationRepository;
 import cl.ipss.saborgourmet.repository.StorageTransactionManager;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
@@ -34,12 +38,14 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class ClientServiceTest {
+
+    private static final ZoneId ZONE = ZoneId.of("America/Santiago");
+    private static final Instant FIXED_NOW = LocalDateTime.of(2026, 12, 1, 10, 0).atZone(ZONE).toInstant();
 
     @Mock
     private ClientRepository clientRepository;
@@ -50,11 +56,12 @@ class ClientServiceTest {
     @Mock
     private StorageTransactionManager transactionManager;
 
-    @InjectMocks
     private ClientService clientService;
 
     @BeforeEach
     void setUp() {
+        clientService = new ClientService(
+                clientRepository, reservationRepository, transactionManager, Clock.fixed(FIXED_NOW, ZONE));
         lenient().when(transactionManager.executeRead(any())).thenAnswer(inv -> {
             Supplier<?> supplier = inv.getArgument(0);
             return supplier.get();
@@ -185,18 +192,56 @@ class ClientServiceTest {
     }
 
     @Test
-    @DisplayName("SG-CLI-08: Allows manual transition between ACTIVE and BANNED and reports updated status field")
+    @DisplayName("SG-CLI-08: Allows manual transition between ACTIVE and BANNED and resets strikes on rehabilitation")
     void updateStatusAllowsBanAndUnban() {
-        Client active = Client.builder().id(1L).name("Ana").status(ClientStatus.ACTIVE).build();
+        Client active = Client.builder().id(1L).name("Ana").status(ClientStatus.ACTIVE).lateCancellations(0).build();
         when(clientRepository.findById(1L)).thenReturn(Optional.of(active));
         when(clientRepository.save(any(Client.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        OperationResponse response = clientService.updateStatus(1L, new ClientStatusRequest(ClientStatus.BANNED));
+        OperationResponse banned = clientService.updateStatus(1L, new ClientStatusRequest(ClientStatus.BANNED));
 
-        assertThat(response.id()).isEqualTo(1L);
-        assertThat(response.message()).isEqualTo(ApiConstants.MSG_CLIENT_STATUS_UPDATED);
-        assertThat(response.updatedFields()).containsExactly(Client.Fields.status);
+        assertThat(banned.id()).isEqualTo(1L);
+        assertThat(banned.message()).isEqualTo(ApiConstants.MSG_CLIENT_STATUS_UPDATED);
+        assertThat(banned.updatedFields()).containsExactly(Client.Fields.status);
         assertThat(active.getStatus()).isEqualTo(ClientStatus.BANNED);
+
+        active.setLateCancellations(3);
+        OperationResponse rehabilitated = clientService.updateStatus(1L, new ClientStatusRequest(ClientStatus.ACTIVE));
+
+        assertThat(rehabilitated.updatedFields())
+                .containsExactly(Client.Fields.status, Client.Fields.lateCancellations);
+        assertThat(active.getStatus()).isEqualTo(ClientStatus.ACTIVE);
+        assertThat(active.getLateCancellations()).isZero();
+    }
+
+    @Test
+    @DisplayName("Regression: Blocks direct deletion of BANNED clients until the ban is lifted")
+    void deleteBlocksBannedClientUntilUnbanned() {
+        Client banned = Client.builder().id(4L).status(ClientStatus.BANNED).lateCancellations(3).build();
+        when(clientRepository.findById(4L)).thenReturn(Optional.of(banned));
+
+        assertThatThrownBy(() -> clientService.delete(4L))
+                .isInstanceOf(BusinessConflictException.class)
+                .extracting(ex -> ((BusinessConflictException) ex).getErrorCode())
+                .isEqualTo(ErrorCode.CLIENT_BANNED_DELETE_BLOCKED);
+        verify(clientRepository, never()).deleteById(4L);
+        verify(clientRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Regression: Blocks profile updates on BANNED clients to prevent email-swap ban evasion")
+    void updateBlocksBannedClientToPreventBanEvasion() {
+        Client banned = Client.builder()
+                .id(4L).name("Ana").email("ana@correo.cl").phone("+56912345678")
+                .status(ClientStatus.BANNED).lateCancellations(3).build();
+        when(clientRepository.findById(4L)).thenReturn(Optional.of(banned));
+
+        assertThatThrownBy(() -> clientService.update(
+                4L, new ClientRequest("Ana", "throwaway@correo.cl", "+56912345678")))
+                .isInstanceOf(BusinessConflictException.class)
+                .extracting(ex -> ((BusinessConflictException) ex).getErrorCode())
+                .isEqualTo(ErrorCode.CLIENT_BANNED_UPDATE_BLOCKED);
+        verify(clientRepository, never()).save(any());
     }
 
     @Test
@@ -237,12 +282,12 @@ class ClientServiceTest {
                 .status(ClientStatus.ACTIVE).build();
         Reservation cancelled = Reservation.builder()
                 .id(10L).clientId(2L).tableId(1L)
-                .date(LocalDate.now().plusDays(2))
+                .date(LocalDate.of(2026, 12, 3))
                 .startTime(LocalTime.of(20, 0)).endTime(LocalTime.of(22, 0))
                 .status(ReservationStatus.CANCELLED).build();
         Reservation past = Reservation.builder()
                 .id(11L).clientId(2L).tableId(1L)
-                .date(LocalDate.now().minusDays(3))
+                .date(LocalDate.of(2026, 11, 28))
                 .startTime(LocalTime.of(20, 0)).endTime(LocalTime.of(22, 0))
                 .status(ReservationStatus.CONFIRMED).build();
 
@@ -268,7 +313,7 @@ class ClientServiceTest {
         Client client = Client.builder().id(3L).status(ClientStatus.ACTIVE).build();
         Reservation upcoming = Reservation.builder()
                 .id(12L).clientId(3L).tableId(1L)
-                .date(LocalDate.now().plusDays(1))
+                .date(LocalDate.of(2026, 12, 2))
                 .startTime(LocalTime.of(20, 0)).endTime(LocalTime.of(22, 0))
                 .status(ReservationStatus.PENDING).build();
 
@@ -280,6 +325,23 @@ class ClientServiceTest {
                 .extracting(ex -> ((BusinessConflictException) ex).getErrorCode())
                 .isEqualTo(ErrorCode.CLIENT_HAS_ACTIVE_RESERVATIONS);
         verify(clientRepository, never()).deleteById(3L);
+        verify(clientRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Regression: Skips disk save when update receives identical values")
+    void updateSkipsSaveWhenNoFieldChanges() {
+        Client existing = Client.builder()
+                .id(1L).name("Ana").email("ana@correo.cl").phone("+56911111111")
+                .status(ClientStatus.ACTIVE).build();
+        when(clientRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(clientRepository.findByEmailAndStatusNot("ana@correo.cl", ClientStatus.DELETED))
+                .thenReturn(Optional.of(existing));
+
+        OperationResponse response = clientService.update(
+                1L, new ClientRequest("Ana", "ana@correo.cl", "+56911111111"));
+
+        assertThat(response.updatedFields()).isEmpty();
         verify(clientRepository, never()).save(any());
     }
 }

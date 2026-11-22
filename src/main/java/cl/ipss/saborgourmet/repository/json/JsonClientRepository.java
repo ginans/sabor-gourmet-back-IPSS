@@ -9,6 +9,9 @@ import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
+/**
+ * Implementación de {@link ClientRepository} respaldada por {@link JsonFileStorage}.
+ */
 @Repository
 @RequiredArgsConstructor
 public class JsonClientRepository implements ClientRepository {
@@ -41,36 +44,18 @@ public class JsonClientRepository implements ClientRepository {
 
     @Override
     public Client save(Client client) {
-        return storage.mutateData(data -> {
-            List<Client> clients = data.getClients();
-            Client toPersist = client.copy();
-            if (toPersist.getId() == null) {
-                long nextId = clients.stream()
-                        .mapToLong(existing -> existing.getId() != null ? existing.getId() : 0L)
-                        .max()
-                        .orElse(0L) + 1L;
-                toPersist.setId(nextId);
-                clients.add(toPersist);
-            } else {
-                boolean replaced = false;
-                for (int i = 0; i < clients.size(); i++) {
-                    if (Objects.equals(clients.get(i).getId(), toPersist.getId())) {
-                        clients.set(i, toPersist);
-                        replaced = true;
-                        break;
-                    }
-                }
-                if (!replaced) {
-                    clients.add(toPersist);
-                }
-            }
-            return toPersist.copy();
-        });
+        return storage.mutateData(data -> JsonFileStorage.upsert(
+                data.getClients(),
+                client.copy(),
+                Client::getId,
+                Client::setId,
+                data::allocateClientId
+        ).copy());
     }
 
     @Override
     public boolean deleteById(Long id) {
-        return storage.mutateData(data ->
+        return storage.mutateIfChanged(data ->
                 data.getClients().removeIf(client -> Objects.equals(client.getId(), id)));
     }
 }

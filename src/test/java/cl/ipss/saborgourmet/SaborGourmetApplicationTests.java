@@ -55,11 +55,29 @@ class SaborGourmetApplicationTests {
     }
 
     @Test
-    @DisplayName("OpenAPI specification endpoint is available on startup")
+    @DisplayName("OpenAPI specification documents accurate 201/204/error HTTP codes on startup")
     void openApiEndpointRespondsSuccessfully() throws Exception {
         mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.info.title").value(ApiConstants.OPENAPI_TITLE));
+                .andExpect(jsonPath("$.info.title").value(ApiConstants.OPENAPI_TITLE))
+                .andExpect(jsonPath("$.paths['/api/v1/clients'].post.responses['201']").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/clients/{id}'].delete.responses['204']").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/reservations'].post.responses['409']").exists());
+    }
+
+    @Test
+    @DisplayName("ReservationProperties validates business hours window fits at least one turn")
+    void reservationPropertiesValidatesOpeningAndClosingWindow() {
+        ReservationProperties valid = new ReservationProperties(
+                120, LocalTime.of(12, 0), LocalTime.of(23, 0), 75, 24, 3);
+        ReservationProperties inverted = new ReservationProperties(
+                120, LocalTime.of(23, 0), LocalTime.of(12, 0), 75, 24, 3);
+        ReservationProperties tooShort = new ReservationProperties(
+                120, LocalTime.of(22, 0), LocalTime.of(23, 0), 75, 24, 3);
+
+        assertThat(valid.isBusinessHoursWindowValid()).isTrue();
+        assertThat(inverted.isBusinessHoursWindowValid()).isFalse();
+        assertThat(tooShort.isBusinessHoursWindowValid()).isFalse();
     }
 
     @Test

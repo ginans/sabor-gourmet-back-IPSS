@@ -1,4 +1,7 @@
 {
+  "nextClientId" : 3,
+  "nextTableId" : 5,
+  "nextReservationId" : 2,
   "clients" : [ {
     "id" : 1,
     "name" : "Ana Perez",

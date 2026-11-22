@@ -15,8 +15,10 @@ import cl.ipss.saborgourmet.model.Reservation;
 import cl.ipss.saborgourmet.repository.ClientRepository;
 import cl.ipss.saborgourmet.repository.ReservationRepository;
 import cl.ipss.saborgourmet.repository.StorageTransactionManager;
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -24,6 +26,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+/**
+ * Servicio de negocio para la administración de clientes: normalización de contacto,
+ * unicidad por correo electrónico, gestión de baneo y eliminación física o anonimizada.
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -32,18 +38,29 @@ public class ClientService {
     private final ClientRepository clientRepository;
     private final ReservationRepository reservationRepository;
     private final StorageTransactionManager transactionManager;
+    private final Clock clock;
 
+    /**
+     * Lista los clientes registrados, omitiendo por defecto los marcados como {@code DELETED}.
+     */
     public List<ClientResponse> findAll(boolean includeDeleted) {
         return transactionManager.executeRead(() -> clientRepository.findAll().stream()
                 .filter(client -> includeDeleted || client.getStatus() != ClientStatus.DELETED)
+                .sorted(Comparator.comparing(Client::getId, Comparator.nullsLast(Long::compareTo)))
                 .map(ClientResponse::from)
                 .toList());
     }
 
+    /**
+     * Recupera un cliente por su identificador único o lanza 404 si no existe.
+     */
     public ClientResponse findById(Long id) {
         return transactionManager.executeRead(() -> ClientResponse.from(getClientOrThrow(id)));
     }
 
+    /**
+     * Registra un cliente nuevo normalizando correo y teléfono y evitando eco de PII en la respuesta.
+     */
     public OperationResponse create(ClientRequest request) {
         return transactionManager.executeWrite(() -> {
             String normalizedEmail = normalizeEmail(request.email());
@@ -68,10 +85,18 @@ public class ClientService {
         });
     }
 
+    /**
+     * Actualiza los datos de un cliente activo, persistiendo solo si hubo cambios reales
+     * y reportando únicamente los nombres de los campos modificados.
+     * Exige levantar previamente el estado {@code BANNED} para impedir la evasión del baneo mediante cambio de correo.
+     */
     public OperationResponse update(Long id, ClientRequest request) {
         return transactionManager.executeWrite(() -> {
             Client existing = getClientOrThrow(id);
             ensureNotDeleted(existing);
+            if (existing.getStatus() == ClientStatus.BANNED) {
+                throw new BusinessConflictException(ErrorCode.CLIENT_BANNED_UPDATE_BLOCKED);
+            }
 
             String normalizedName = request.name().trim();
             String normalizedEmail = normalizeEmail(request.email());
@@ -97,12 +122,18 @@ public class ClientService {
                 updatedFields.add(Client.Fields.phone);
             }
 
-            Client updated = clientRepository.save(existing);
-            log.info("Updated client id={} fields={}", updated.getId(), updatedFields);
-            return OperationResponse.ofUpdated(updated.getId(), ApiConstants.MSG_CLIENT_UPDATED, List.copyOf(updatedFields));
+            if (!updatedFields.isEmpty()) {
+                clientRepository.save(existing);
+                log.info("Updated client id={} fields={}", existing.getId(), updatedFields);
+            }
+            return OperationResponse.ofUpdated(existing.getId(), ApiConstants.MSG_CLIENT_UPDATED, List.copyOf(updatedFields));
         });
     }
 
+    /**
+     * Cambia manualmente el estado operativo del cliente entre {@code ACTIVE} y {@code BANNED}.
+     * Al rehabilitar un cliente desde {@code BANNED} a {@code ACTIVE}, reinicia su contador de cancelaciones tardías.
+     */
     public OperationResponse updateStatus(Long id, ClientStatusRequest request) {
         return transactionManager.executeWrite(() -> {
             if (request.status() == ClientStatus.DELETED) {
@@ -114,14 +145,22 @@ public class ClientService {
 
             List<String> updatedFields = new ArrayList<>();
             if (existing.getStatus() != request.status()) {
+                ClientStatus previousStatus = existing.getStatus();
                 existing.setStatus(request.status());
                 updatedFields.add(Client.Fields.status);
+                if (previousStatus == ClientStatus.BANNED
+                        && request.status() == ClientStatus.ACTIVE
+                        && existing.getLateCancellations() > 0) {
+                    existing.setLateCancellations(0);
+                    updatedFields.add(Client.Fields.lateCancellations);
+                }
+                clientRepository.save(existing);
+                log.info("Updated client id={} status to {} fields={}",
+                        existing.getId(), existing.getStatus(), updatedFields);
             }
 
-            Client updated = clientRepository.save(existing);
-            log.info("Updated client id={} status to {}", updated.getId(), updated.getStatus());
             return OperationResponse.ofUpdated(
-                    updated.getId(),
+                    existing.getId(),
                     ApiConstants.MSG_CLIENT_STATUS_UPDATED,
                     List.copyOf(updatedFields)
             );
@@ -129,13 +168,17 @@ public class ClientService {
     }
 
     /**
-     * Deletes a client physically when no reservation history exists,
-     * or applies anonymized soft-deletion when only historical/cancelled reservations exist.
+     * Elimina físicamente al cliente si no posee reservas, o aplica soft-delete con
+     * anonimización de datos personales si solo posee historial cancelado o finalizado.
+     * Exige levantar previamente el estado {@code BANNED} para impedir la evasión del baneo.
      */
     public void delete(Long id) {
         transactionManager.executeWrite(() -> {
             Client existing = getClientOrThrow(id);
             ensureNotDeleted(existing);
+            if (existing.getStatus() == ClientStatus.BANNED) {
+                throw new BusinessConflictException(ErrorCode.CLIENT_BANNED_DELETE_BLOCKED);
+            }
 
             List<Reservation> clientReservations = reservationRepository.findByClientId(id);
             if (clientReservations.isEmpty()) {
@@ -144,7 +187,7 @@ public class ClientService {
                 return;
             }
 
-            LocalDateTime now = LocalDateTime.now();
+            LocalDateTime now = LocalDateTime.now(clock);
             boolean hasActiveUpcomingReservation = clientReservations.stream()
                     .anyMatch(reservation -> isActiveAndNotFinished(reservation, now));
             if (hasActiveUpcomingReservation) {

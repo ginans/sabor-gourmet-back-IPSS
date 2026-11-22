@@ -20,6 +20,7 @@ import cl.ipss.saborgourmet.repository.ReservationRepository;
 import cl.ipss.saborgourmet.repository.json.JsonFileStorage;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.net.URI;
 import java.nio.file.Files;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -75,6 +76,74 @@ class ClientControllerIntegrationTest {
                 .andExpect(jsonPath("$.fieldErrors.name").exists())
                 .andExpect(jsonPath("$.fieldErrors.email").exists())
                 .andExpect(jsonPath("$.fieldErrors.phone").exists());
+
+        mockMvc.perform(post(ApiConstants.CLIENTS_PATH)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": " a ",
+                                  "email": "valid@correo.cl",
+                                  "phone": "-------"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.name").exists())
+                .andExpect(jsonPath("$.fieldErrors.phone").exists());
+
+        mockMvc.perform(post(ApiConstants.CLIENTS_PATH)
+                        .contentType(MediaType.TEXT_PLAIN)
+                        .content("plain text"))
+                .andExpect(status().isUnsupportedMediaType())
+                .andExpect(jsonPath("$.category").value("VALIDATION"))
+                .andExpect(jsonPath("$.code").value(ErrorCode.UNSUPPORTED_MEDIA_TYPE.getCode()));
+
+        mockMvc.perform(post(ApiConstants.CLIENTS_PATH)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "Valid Name",
+                                  "email": "valid2@correo.cl",
+                                  "phone": "12345678901234567890"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.phone").exists());
+
+        mockMvc.perform(post(ApiConstants.CLIENTS_PATH)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "Control Char Phone",
+                                  "email": "ctrl@correo.cl",
+                                  "phone": "1234567\\t\\n\\r"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.phone").exists());
+
+        mockMvc.perform(get(ApiConstants.CLIENTS_PATH)
+                        .accept(MediaType.APPLICATION_XML))
+                .andExpect(status().isNotAcceptable())
+                .andExpect(result -> assertThat(result.getResponse().getContentAsString()).isEmpty());
+
+        mockMvc.perform(get(ApiConstants.CLIENTS_PATH + "/99999")
+                        .accept(MediaType.APPLICATION_XML))
+                .andExpect(status().isNotAcceptable())
+                .andExpect(result -> assertThat(result.getResponse().getContentAsString()).isEmpty());
+
+        mockMvc.perform(get(ApiConstants.CLIENTS_PATH + "/99999")
+                        .accept(MediaType.TEXT_PLAIN))
+                .andExpect(status().isNotAcceptable())
+                .andExpect(result -> assertThat(result.getResponse().getContentAsString()).isEmpty());
+
+        mockMvc.perform(get(URI.create(ApiConstants.CLIENTS_PATH + "/%20")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.category").value("VALIDATION"))
+                .andExpect(jsonPath("$.code").value(ErrorCode.INVALID_PARAMETER_TYPE.getCode()));
+
+        mockMvc.perform(get(ApiConstants.CLIENTS_PATH + "/-1"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.id").exists());
 
         mockMvc.perform(post(ApiConstants.CLIENTS_PATH)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -148,6 +217,30 @@ class ClientControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(clientWithoutHistoryId))
                 .andExpect(jsonPath("$.message").value(ApiConstants.MSG_CLIENT_STATUS_UPDATED))
+                .andExpect(jsonPath("$.updatedFields[0]").value(Client.Fields.status));
+
+        mockMvc.perform(delete(ApiConstants.CLIENTS_PATH + "/" + clientWithoutHistoryId))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value(ErrorCode.CLIENT_BANNED_DELETE_BLOCKED.getCode()));
+
+        mockMvc.perform(put(ApiConstants.CLIENTS_PATH + "/" + clientWithoutHistoryId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "Luis Alberto Soto",
+                                  "email": "evasion@correo.cl",
+                                  "phone": "+56 9 5555-6666"
+                                }
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value(ErrorCode.CLIENT_BANNED_UPDATE_BLOCKED.getCode()));
+
+        mockMvc.perform(patch(ApiConstants.CLIENTS_PATH + "/" + clientWithoutHistoryId + "/status")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "status": "ACTIVE" }
+                                """))
+                .andExpect(status().isOk())
                 .andExpect(jsonPath("$.updatedFields[0]").value(Client.Fields.status));
 
         mockMvc.perform(delete(ApiConstants.CLIENTS_PATH + "/" + clientWithoutHistoryId))

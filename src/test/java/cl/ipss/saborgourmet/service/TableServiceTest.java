@@ -8,6 +8,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import cl.ipss.saborgourmet.config.ReservationProperties;
 import cl.ipss.saborgourmet.dto.table.TableRequest;
 import cl.ipss.saborgourmet.dto.table.TableResponse;
 import cl.ipss.saborgourmet.exception.ErrorCode;
@@ -19,8 +20,12 @@ import cl.ipss.saborgourmet.model.RestaurantTable;
 import cl.ipss.saborgourmet.repository.ReservationRepository;
 import cl.ipss.saborgourmet.repository.StorageTransactionManager;
 import cl.ipss.saborgourmet.repository.TableRepository;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
@@ -28,12 +33,14 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class TableServiceTest {
+
+    private static final ZoneId ZONE = ZoneId.of("America/Santiago");
+    private static final Instant FIXED_NOW = LocalDateTime.of(2026, 12, 1, 10, 0).atZone(ZONE).toInstant();
 
     @Mock
     private TableRepository tableRepository;
@@ -44,11 +51,14 @@ class TableServiceTest {
     @Mock
     private StorageTransactionManager transactionManager;
 
-    @InjectMocks
     private TableService tableService;
 
     @BeforeEach
     void setUp() {
+        ReservationProperties properties = new ReservationProperties(
+                120, LocalTime.of(12, 0), LocalTime.of(23, 0), 75, 24, 3);
+        tableService = new TableService(
+                tableRepository, reservationRepository, transactionManager, properties, Clock.fixed(FIXED_NOW, ZONE));
         lenient().when(transactionManager.executeRead(any())).thenAnswer(inv -> {
             Supplier<?> supplier = inv.getArgument(0);
             return supplier.get();
@@ -136,7 +146,7 @@ class TableServiceTest {
                 .id(1L).number(1).capacity(6).location("Main Hall").active(true).build();
         Reservation activeReservation = Reservation.builder()
                 .id(10L).clientId(1L).tableId(1L)
-                .date(LocalDate.now().plusDays(1))
+                .date(LocalDate.of(2026, 12, 2))
                 .startTime(LocalTime.of(20, 0)).endTime(LocalTime.of(22, 0))
                 .guestCount(5).status(ReservationStatus.CONFIRMED).build();
 
@@ -152,13 +162,34 @@ class TableServiceTest {
     }
 
     @Test
+    @DisplayName("Regression: Blocks capacity increase if active reservation falls below 75% min occupancy")
+    void updateBlocksCapacityIncreaseBreakingMinOccupancy() {
+        RestaurantTable existing = RestaurantTable.builder()
+                .id(1L).number(1).capacity(4).location("Main Hall").active(true).build();
+        Reservation activeReservation = Reservation.builder()
+                .id(10L).clientId(1L).tableId(1L)
+                .date(LocalDate.of(2026, 12, 2))
+                .startTime(LocalTime.of(20, 0)).endTime(LocalTime.of(22, 0))
+                .guestCount(3).status(ReservationStatus.CONFIRMED).build();
+
+        when(tableRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(tableRepository.findByNumber(1)).thenReturn(Optional.of(existing));
+        when(reservationRepository.findByTableId(1L)).thenReturn(List.of(activeReservation));
+
+        assertThatThrownBy(() -> tableService.update(1L, new TableRequest(1, 8, "Main Hall", true)))
+                .isInstanceOf(BusinessConflictException.class)
+                .extracting(ex -> ((BusinessConflictException) ex).getErrorCode())
+                .isEqualTo(ErrorCode.TABLE_CAPACITY_MIN_OCCUPANCY_CONFLICT);
+    }
+
+    @Test
     @DisplayName("SG-MES-08: Blocks deactivation when table has active upcoming reservations")
     void updateBlocksDeactivationWithActiveReservations() {
         RestaurantTable existing = RestaurantTable.builder()
                 .id(1L).number(1).capacity(4).location("Main Hall").active(true).build();
         Reservation activeReservation = Reservation.builder()
                 .id(10L).clientId(1L).tableId(1L)
-                .date(LocalDate.now().plusDays(1))
+                .date(LocalDate.of(2026, 12, 2))
                 .startTime(LocalTime.of(19, 0)).endTime(LocalTime.of(21, 0))
                 .guestCount(3).status(ReservationStatus.PENDING).build();
 
@@ -190,7 +221,7 @@ class TableServiceTest {
         RestaurantTable existing = RestaurantTable.builder().id(1L).number(1).capacity(4).active(true).build();
         Reservation historical = Reservation.builder()
                 .id(10L).clientId(1L).tableId(1L)
-                .date(LocalDate.now().minusDays(2))
+                .date(LocalDate.of(2026, 11, 28))
                 .startTime(LocalTime.of(20, 0)).endTime(LocalTime.of(22, 0))
                 .guestCount(3).status(ReservationStatus.CANCELLED).build();
 

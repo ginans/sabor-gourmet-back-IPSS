@@ -5,17 +5,7 @@ import java.time.Instant;
 import java.util.Map;
 
 /**
- * Standardized JSON error payload returned across all REST endpoints.
- * Ensures internal stack traces are never exposed to API consumers.
- *
- * @param timestamp   UTC instant when the error occurred
- * @param status      HTTP status code
- * @param error       HTTP status reason phrase
- * @param category    origin category ({@link ErrorCategory})
- * @param code        machine-readable error code
- * @param message     human-readable error description
- * @param path        request URI that triggered the error
- * @param fieldErrors optional map of invalid field names and validation messages
+ * Estructura JSON estandarizada de error para todos los endpoints REST sin exponer trazas internas.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ApiErrorResponse(

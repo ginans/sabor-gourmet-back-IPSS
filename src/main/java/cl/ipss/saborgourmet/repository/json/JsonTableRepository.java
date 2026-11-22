@@ -8,6 +8,9 @@ import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
+/**
+ * Implementación de {@link TableRepository} respaldada por {@link JsonFileStorage}.
+ */
 @Repository
 @RequiredArgsConstructor
 public class JsonTableRepository implements TableRepository {
@@ -39,36 +42,18 @@ public class JsonTableRepository implements TableRepository {
 
     @Override
     public RestaurantTable save(RestaurantTable table) {
-        return storage.mutateData(data -> {
-            List<RestaurantTable> tables = data.getTables();
-            RestaurantTable toPersist = table.copy();
-            if (toPersist.getId() == null) {
-                long nextId = tables.stream()
-                        .mapToLong(existing -> existing.getId() != null ? existing.getId() : 0L)
-                        .max()
-                        .orElse(0L) + 1L;
-                toPersist.setId(nextId);
-                tables.add(toPersist);
-            } else {
-                boolean replaced = false;
-                for (int i = 0; i < tables.size(); i++) {
-                    if (Objects.equals(tables.get(i).getId(), toPersist.getId())) {
-                        tables.set(i, toPersist);
-                        replaced = true;
-                        break;
-                    }
-                }
-                if (!replaced) {
-                    tables.add(toPersist);
-                }
-            }
-            return toPersist.copy();
-        });
+        return storage.mutateData(data -> JsonFileStorage.upsert(
+                data.getTables(),
+                table.copy(),
+                RestaurantTable::getId,
+                RestaurantTable::setId,
+                data::allocateTableId
+        ).copy());
     }
 
     @Override
     public boolean deleteById(Long id) {
-        return storage.mutateData(data ->
+        return storage.mutateIfChanged(data ->
                 data.getTables().removeIf(table -> Objects.equals(table.getId(), id)));
     }
 }

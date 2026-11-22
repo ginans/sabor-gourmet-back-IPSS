@@ -1,11 +1,12 @@
 package cl.ipss.saborgourmet.exception.infrastructure;
 
 import cl.ipss.saborgourmet.exception.ErrorCode;
+import lombok.Getter;
 
 /**
- * Thrown when reading from or writing to the JSON persistence file fails
- * (maps to HTTP 500 Internal Server Error without leaking internal stack traces).
+ * Excepción de infraestructura ante fallos de lectura o escritura del archivo JSON (HTTP 500).
  */
+@Getter
 public class DataStorageException extends RuntimeException {
 
     private final ErrorCode errorCode;
@@ -18,9 +19,5 @@ public class DataStorageException extends RuntimeException {
     public DataStorageException(String technicalDetail, Throwable cause) {
         super(technicalDetail, cause);
         this.errorCode = ErrorCode.DATA_STORAGE_ERROR;
-    }
-
-    public ErrorCode getErrorCode() {
-        return errorCode;
     }
 }
