@@ -1,0 +1,53 @@
+{
+  "clients" : [ {
+    "id" : 1,
+    "name" : "Ana Perez",
+    "email" : "ana.perez@correo.cl",
+    "phone" : "+56912345678",
+    "status" : "ACTIVE",
+    "lateCancellations" : 0
+  }, {
+    "id" : 2,
+    "name" : "Luis Soto",
+    "email" : "luis.soto@correo.cl",
+    "phone" : "+56987654321",
+    "status" : "ACTIVE",
+    "lateCancellations" : 0
+  } ],
+  "tables" : [ {
+    "id" : 1,
+    "number" : 1,
+    "capacity" : 2,
+    "location" : "Main Hall",
+    "active" : true
+  }, {
+    "id" : 2,
+    "number" : 2,
+    "capacity" : 4,
+    "location" : "Main Hall",
+    "active" : true
+  }, {
+    "id" : 3,
+    "number" : 3,
+    "capacity" : 6,
+    "location" : "Terrace",
+    "active" : true
+  }, {
+    "id" : 4,
+    "number" : 4,
+    "capacity" : 8,
+    "location" : "VIP Room",
+    "active" : true
+  } ],
+  "reservations" : [ {
+    "id" : 1,
+    "clientId" : 1,
+    "tableId" : 2,
+    "date" : "2026-12-15",
+    "startTime" : "20:00:00",
+    "endTime" : "22:00:00",
+    "guestCount" : 4,
+    "status" : "CONFIRMED",
+    "notes" : "Window seat"
+  } ]
+}

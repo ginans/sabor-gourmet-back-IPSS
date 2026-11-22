@@ -1,0 +1,309 @@
+{
+  "info": {
+    "_postman_id": "a7b4c2d1-9e8f-4a1b-8c3d-5e6f7a8b9c0d",
+    "name": "Sabor Gourmet — Restaurant Reservation API (Eva 2)",
+    "description": "Reproducible API collection covering Clients CRUD, Tables CRUD, Availability, Reservations lifecycle (create, modify, confirm, cancel), error scenarios (400/404/409), and persistence verification after server restart.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "reservationDate", "value": "2026-12-20" },
+    { "key": "clientId", "value": "1" },
+    { "key": "tableId", "value": "2" },
+    { "key": "reservationId", "value": "1" }
+  ],
+  "item": [
+    {
+      "name": "1. Clients",
+      "item": [
+        {
+          "name": "List Clients (200 OK)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/clients"
+          }
+        },
+        {
+          "name": "Create Client (201 Created — No PII Echo)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Camila Rojas\",\n  \"email\": \"CAMILA.ROJAS@correo.cl\",\n  \"phone\": \"+56 9 4567-8901\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/clients"
+          }
+        },
+        {
+          "name": "Create Client — Validation Error (400 Bad Request)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"\",\n  \"email\": \"not-an-email\",\n  \"phone\": \"12\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/clients"
+          }
+        },
+        {
+          "name": "Create Client — Duplicate Email (409 Conflict)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Camila R.\",\n  \"email\": \"camila.rojas@correo.cl\",\n  \"phone\": \"+56900001111\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/clients"
+          }
+        },
+        {
+          "name": "Get Client by ID (200 OK)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/clients/{{clientId}}"
+          }
+        },
+        {
+          "name": "Get Non-Existent Client (404 Not Found)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/clients/999999"
+          }
+        },
+        {
+          "name": "Update Client (200 OK — Returns updatedFields only)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Ana Maria Perez\",\n  \"email\": \"ana.perez@correo.cl\",\n  \"phone\": \"+56 9 1234-9999\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/clients/{{clientId}}"
+          }
+        },
+        {
+          "name": "Update Client Status to BANNED (200 OK)",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"BANNED\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/clients/2/status"
+          }
+        },
+        {
+          "name": "Restore Client Status to ACTIVE (200 OK)",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"ACTIVE\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/clients/2/status"
+          }
+        },
+        {
+          "name": "Delete Client without Reservations (204 No Content)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/clients/3"
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Tables & Availability",
+      "item": [
+        {
+          "name": "List All Tables (200 OK)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/tables"
+          }
+        },
+        {
+          "name": "Create Table (201 Created)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"number\": 5,\n  \"capacity\": 4,\n  \"location\": \"Garden\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/tables"
+          }
+        },
+        {
+          "name": "Create Table — Duplicate Number (409 Conflict)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"number\": 5,\n  \"capacity\": 6,\n  \"location\": \"Patio\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/tables"
+          }
+        },
+        {
+          "name": "Update Table Configuration (200 OK)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"number\": 5,\n  \"capacity\": 6,\n  \"location\": \"Garden Terrace\",\n  \"active\": true\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/tables/5"
+          }
+        },
+        {
+          "name": "Check Availability (200 OK — Applies 75% Min Occupancy)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/tables/availability?date={{reservationDate}}&time=20:00&guests=3"
+          }
+        },
+        {
+          "name": "Delete Table without Reservations (204 No Content)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/tables/5"
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Reservations",
+      "item": [
+        {
+          "name": "List Reservations (200 OK)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/reservations"
+          }
+        },
+        {
+          "name": "Create Reservation (201 Created — PENDING)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientId\": 1,\n  \"tableId\": 2,\n  \"date\": \"{{reservationDate}}\",\n  \"startTime\": \"20:00\",\n  \"guestCount\": 3,\n  \"notes\": \"Birthday dinner\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/reservations"
+          }
+        },
+        {
+          "name": "Create Reservation — Overlapping Slot (409 Conflict)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientId\": 2,\n  \"tableId\": 2,\n  \"date\": \"{{reservationDate}}\",\n  \"startTime\": \"20:30\",\n  \"guestCount\": 4\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/reservations"
+          }
+        },
+        {
+          "name": "Create Reservation — Below 75% Min Occupancy (409 Conflict)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientId\": 2,\n  \"tableId\": 3,\n  \"date\": \"{{reservationDate}}\",\n  \"startTime\": \"19:00\",\n  \"guestCount\": 3\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/reservations"
+          }
+        },
+        {
+          "name": "Create Reservation — Outside Business Hours (400 Bad Request)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientId\": 1,\n  \"tableId\": 2,\n  \"date\": \"{{reservationDate}}\",\n  \"startTime\": \"22:00\",\n  \"guestCount\": 3\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/reservations"
+          }
+        },
+        {
+          "name": "Modify Active Reservation (200 OK)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientId\": 1,\n  \"tableId\": 2,\n  \"date\": \"{{reservationDate}}\",\n  \"startTime\": \"19:30\",\n  \"guestCount\": 4,\n  \"notes\": \"Updated time\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/reservations/2"
+          }
+        },
+        {
+          "name": "Confirm Reservation (200 OK — CONFIRMED)",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/reservations/2/confirm"
+          }
+        },
+        {
+          "name": "Cancel Reservation & Release Table (200 OK — CANCELLED)",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/reservations/2/cancel"
+          }
+        },
+        {
+          "name": "Verify Table Released After Cancellation (200 OK)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/tables/availability?date={{reservationDate}}&time=19:30&guests=4"
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. OpenAPI & Persistence Check",
+      "item": [
+        {
+          "name": "OpenAPI JSON Specification (200 OK)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/v3/api-docs"
+          }
+        },
+        {
+          "name": "Post-Restart Persistence Verification — Reservations (200 OK)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/reservations"
+          }
+        }
+      ]
+    }
+  ]
+}
