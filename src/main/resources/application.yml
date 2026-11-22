@@ -1,0 +1,31 @@
+server:
+  port: ${SERVER_PORT:8080}
+
+spring:
+  application:
+    name: ${SPRING_APPLICATION_NAME:sabor-gourmet-api}
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+      indent-output: true
+    deserialization:
+      fail-on-unknown-properties: true
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+
+app:
+  storage:
+    file-path: ${APP_STORAGE_FILE_PATH:data/data.json}
+  reservations:
+    turn-duration-minutes: ${APP_RESERVATIONS_TURN_DURATION_MINUTES:120}
+    opening-time: ${APP_RESERVATIONS_OPENING_TIME:12:00}
+    closing-time: ${APP_RESERVATIONS_CLOSING_TIME:23:00}
+    min-occupancy-percentage: ${APP_RESERVATIONS_MIN_OCCUPANCY_PERCENTAGE:75}
+    cancellation-notice-hours: ${APP_RESERVATIONS_CANCELLATION_NOTICE_HOURS:24}
+    max-late-cancellations: ${APP_RESERVATIONS_MAX_LATE_CANCELLATIONS:3}
