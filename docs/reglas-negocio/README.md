@@ -13,17 +13,30 @@ Esta carpeta es la **fuente de verdad funcional** de la API REST de reservas del
 
 ---
 
+## Equivalencia Español (Documentación BDD) ↔ Inglés (Código y API)
+
+Todo el código fuente, modelos, enums, rutas REST y el archivo `data/data.json` están implementados en **inglés** siguiendo estándares de industria:
+
+| Concepto BDD (Español) | Implementación API / Código (Inglés) |
+| :--- | :--- |
+| `data/datos.json` (`clientes`, `mesas`, `reservas`) | `data/data.json` (`clients`, `tables`, `reservations`) |
+| `/api/v1/clientes` · `ACTIVO / BANEADO / ELIMINADO` | `/api/v1/clients` · `ACTIVE / BANNED / DELETED` (`POST`/`PUT`/`PATCH` devuelven `OperationResponse` sin PII) |
+| `/api/v1/mesas` · `/disponibilidad` | `/api/v1/tables` · `/api/v1/tables/availability?date=&time=&guests=` |
+| `/api/v1/reservas` · `PENDIENTE / CONFIRMADA / CANCELADA` | `/api/v1/reservations` · `PENDING / CONFIRMED / CANCELLED` (`PATCH /{id}/confirm`, `PATCH /{id}/cancel`) |
+
+---
+
 ## Parámetros Configurables (`application.yml`)
 
 | Parámetro | Valor por defecto | Descripción |
 | :--- | :---: | :--- |
-| `app.storage.file-path` | `data/datos.json` | Ruta del archivo JSON de persistencia |
-| `app.reservas.duracion-turno-minutos` | `120` | Duración estándar de cada turno de reserva |
-| `app.reservas.hora-apertura` | `12:00` | Hora de inicio de atención |
-| `app.reservas.hora-cierre` | `23:00` | Hora de cierre (`horaFin <= 23:00`) |
-| `app.reservas.ocupacion-minima-porcentaje` | `75` | Porcentaje mínimo de sillas ocupadas (redondeado hacia abajo, mínimo 1) |
-| `app.reservas.horas-anticipacion-cancelacion` | `24` | Horas mínimas de anticipación para cancelar sin penalización |
-| `app.reservas.max-cancelaciones-tardias` | `3` | Cantidad de cancelaciones tardías que gatilla el baneo automático |
+| `app.storage.file-path` | `data/data.json` | Ruta del archivo JSON de persistencia (`APP_STORAGE_FILE_PATH`) |
+| `app.reservations.turn-duration-minutes` | `120` | Duración estándar de cada turno de reserva |
+| `app.reservations.opening-time` | `12:00` | Hora de inicio de atención |
+| `app.reservations.closing-time` | `23:00` | Hora de cierre (`endTime <= 23:00`) |
+| `app.reservations.min-occupancy-percentage` | `75` | Porcentaje mínimo de sillas ocupadas (redondeado hacia abajo, mínimo 1) |
+| `app.reservations.cancellation-notice-hours` | `24` | Horas mínimas de anticipación para cancelar sin penalización |
+| `app.reservations.max-late-cancellations` | `3` | Cantidad de cancelaciones tardías que gatilla el baneo automático |
 
 ### Tabla de referencia: Ocupación mínima del 75% (`Math.max(1, floor(capacidad * 0.75))`)
 
