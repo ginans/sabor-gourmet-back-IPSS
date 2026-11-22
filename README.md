@@ -161,3 +161,9 @@ Base path: `/api/v1`
 * **Persistencia y concurrencia:** `JsonFileStorage` inicializa automáticamente `data/data.json` si no existe, mantiene secuencias de IDs independientes para evitar reciclaje y serializa lecturas/escrituras mediante `ReentrantReadWriteLock` con volcado atómico.
 
 La especificación completa en formato BDD (Gherkin) se encuentra en [`docs/reglas-negocio/README.md`](./docs/reglas-negocio/README.md).
+
+---
+
+## Declaración de Uso de Inteligencia Artificial (IA)
+
+Durante el desarrollo de este proyecto se utilizó apoyo de inteligencia artificial **Gemini (Google)** bajo una dinámica de *pair programming* como apoyo para revisión de código, identificación de casos borde, contraste de buenas prácticas en Spring Boot y refinamiento de pruebas y documentación. El diseño de la solución, la implementación, las decisiones técnicas, la validación final y la autoría completa del proyecto corresponden íntegramente a la desarrolladora, Gina Norambuena.
