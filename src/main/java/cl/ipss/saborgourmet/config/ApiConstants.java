@@ -16,6 +16,17 @@ public final class ApiConstants {
 
     public static final String ANONYMIZED_CLIENT_NAME = "Deleted Client";
     public static final String TEMP_FILE_SUFFIX = ".tmp";
+    public static final String PHONE_REGEX = "^\\+?[0-9\\s-]{7,20}$";
+    public static final String PHONE_WHITESPACE_DASH_REGEX = "[\\s-]+";
+
+    public static final String FIELD_NAME = "name";
+    public static final String FIELD_EMAIL = "email";
+    public static final String FIELD_PHONE = "phone";
+    public static final String FIELD_STATUS = "status";
+
+    public static final String MSG_CLIENT_CREATED = "Client registered successfully.";
+    public static final String MSG_CLIENT_UPDATED = "Client updated successfully.";
+    public static final String MSG_CLIENT_STATUS_UPDATED = "Client status updated successfully.";
 
     public static final String OPENAPI_TITLE = "Sabor Gourmet — Restaurant Reservation API";
     public static final String OPENAPI_VERSION = "1.0.0";
