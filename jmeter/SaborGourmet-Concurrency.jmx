@@ -58,18 +58,17 @@
       <stringProp name="TestPlan.user_define_classpath"></stringProp>
     </TestPlan>
     <hashTree>
-      <ConfigTestElement guiclass="HttpDefaultsGui" testclass="ConfigTestElement" testname="HTTP Request Defaults" enabled="true">
-        <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
-          <collectionProp name="Arguments.arguments"/>
-        </elementProp>
+      <ConfigTestElement guiclass="HttpDefaultsGui" testclass="ConfigTestElement" testname="HTTP Request Defaults">
+        <intProp name="HTTPSampler.connect_timeout">5000</intProp>
+        <intProp name="HTTPSampler.response_timeout">15000</intProp>
         <stringProp name="HTTPSampler.domain">${HOST}</stringProp>
         <stringProp name="HTTPSampler.port">${PORT}</stringProp>
         <stringProp name="HTTPSampler.protocol">${PROTOCOL}</stringProp>
         <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
-        <stringProp name="HTTPSampler.path"></stringProp>
-        <stringProp name="HTTPSampler.concurrentPool">6</stringProp>
-        <stringProp name="HTTPSampler.connect_timeout">5000</stringProp>
-        <stringProp name="HTTPSampler.response_timeout">15000</stringProp>
+        <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="Variables definidas por el Usuario">
+          <collectionProp name="Arguments.arguments"/>
+        </elementProp>
+        <stringProp name="HTTPSampler.implementation"></stringProp>
       </ConfigTestElement>
       <hashTree/>
       <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="HTTP Header Manager (JSON)" enabled="true">
@@ -85,49 +84,37 @@
         </collectionProp>
       </HeaderManager>
       <hashTree/>
-
-      <!-- =================================================================== -->
-      <!-- setUp Thread Group: crea cliente, mesa y reserva aislados por run   -->
-      <!-- =================================================================== -->
       <SetupThreadGroup guiclass="SetupThreadGroupGui" testclass="SetupThreadGroup" testname="setUp — Preparar Datos Aislados" enabled="true">
-        <stringProp name="ThreadGroup.on_sample_error">stoptest</stringProp>
-        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
-          <boolProp name="LoopController.continue_forever">false</boolProp>
-          <stringProp name="LoopController.loops">1</stringProp>
-        </elementProp>
-        <stringProp name="ThreadGroup.num_threads">1</stringProp>
-        <stringProp name="ThreadGroup.ramp_time">0</stringProp>
-        <boolProp name="ThreadGroup.scheduler">false</boolProp>
-        <stringProp name="ThreadGroup.duration"></stringProp>
-        <stringProp name="ThreadGroup.delay"></stringProp>
+        <intProp name="ThreadGroup.num_threads">1</intProp>
+        <intProp name="ThreadGroup.ramp_time">0</intProp>
         <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+        <stringProp name="ThreadGroup.on_sample_error">stoptest</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller">
+          <stringProp name="LoopController.loops">1</stringProp>
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+        </elementProp>
       </SetupThreadGroup>
       <hashTree>
         <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="[Setup] 1. Crear cliente titular" enabled="true">
+          <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
+          <stringProp name="HTTPSampler.path">/api/v1/clients</stringProp>
+          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+          <stringProp name="HTTPSampler.method">POST</stringProp>
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
           <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
           <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
             <collectionProp name="Arguments.arguments">
               <elementProp name="" elementType="HTTPArgument">
                 <boolProp name="HTTPArgument.always_encode">false</boolProp>
-                <stringProp name="Argument.value">{
-  &quot;name&quot;: &quot;JMeter Load Owner&quot;,
-  &quot;email&quot;: &quot;jmeter-owner-${RUN_ID}@saborgourmet.cl&quot;,
-  &quot;phone&quot;: &quot;+56912345678&quot;
+                <stringProp name="Argument.value">{&#xd;
+  &quot;name&quot;: &quot;JMeter Load Owner&quot;,&#xd;
+  &quot;email&quot;: &quot;jmeter-owner-${RUN_ID}@saborgourmet.cl&quot;,&#xd;
+  &quot;phone&quot;: &quot;+56912345678&quot;&#xd;
 }</stringProp>
                 <stringProp name="Argument.metadata">=</stringProp>
               </elementProp>
             </collectionProp>
           </elementProp>
-          <stringProp name="HTTPSampler.domain"></stringProp>
-          <stringProp name="HTTPSampler.port"></stringProp>
-          <stringProp name="HTTPSampler.protocol"></stringProp>
-          <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
-          <stringProp name="HTTPSampler.path">/api/v1/clients</stringProp>
-          <stringProp name="HTTPSampler.method">POST</stringProp>
-          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
-          <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
-          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
-          <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
         </HTTPSamplerProxy>
         <hashTree>
           <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Assert HTTP 201" enabled="true">
@@ -148,33 +135,27 @@
           </JSONPostProcessor>
           <hashTree/>
         </hashTree>
-
         <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="[Setup] 2. Crear mesa dedicada" enabled="true">
+          <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
+          <stringProp name="HTTPSampler.path">/api/v1/tables</stringProp>
+          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+          <stringProp name="HTTPSampler.method">POST</stringProp>
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
           <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
           <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
             <collectionProp name="Arguments.arguments">
               <elementProp name="" elementType="HTTPArgument">
                 <boolProp name="HTTPArgument.always_encode">false</boolProp>
-                <stringProp name="Argument.value">{
-  &quot;number&quot;: ${TABLE_NUMBER},
-  &quot;capacity&quot;: 4,
-  &quot;location&quot;: &quot;JMeter Load Hall&quot;,
-  &quot;active&quot;: true
+                <stringProp name="Argument.value">{&#xd;
+  &quot;number&quot;: ${TABLE_NUMBER},&#xd;
+  &quot;capacity&quot;: 4,&#xd;
+  &quot;location&quot;: &quot;JMeter Load Hall&quot;,&#xd;
+  &quot;active&quot;: true&#xd;
 }</stringProp>
                 <stringProp name="Argument.metadata">=</stringProp>
               </elementProp>
             </collectionProp>
           </elementProp>
-          <stringProp name="HTTPSampler.domain"></stringProp>
-          <stringProp name="HTTPSampler.port"></stringProp>
-          <stringProp name="HTTPSampler.protocol"></stringProp>
-          <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
-          <stringProp name="HTTPSampler.path">/api/v1/tables</stringProp>
-          <stringProp name="HTTPSampler.method">POST</stringProp>
-          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
-          <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
-          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
-          <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
         </HTTPSamplerProxy>
         <hashTree>
           <UserParameters guiclass="UserParametersGui" testclass="UserParameters" testname="Publicar sg.clientId y sg.sharedEmail" enabled="true">
@@ -183,7 +164,7 @@
               <stringProp name="2">_pubSharedEmail</stringProp>
             </collectionProp>
             <collectionProp name="UserParameters.thread_values">
-              <collectionProp name="1">
+              <collectionProp name="-17204526">
                 <stringProp name="1">${__setProperty(sg.clientId,${setupClientId},)}</stringProp>
                 <stringProp name="2">${__setProperty(sg.sharedEmail,jmeter-race-${RUN_ID}@saborgourmet.cl,)}</stringProp>
               </collectionProp>
@@ -209,35 +190,29 @@
           </JSONPostProcessor>
           <hashTree/>
         </hashTree>
-
         <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="[Setup] 3. Crear reserva para carrera de cancelación" enabled="true">
+          <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
+          <stringProp name="HTTPSampler.path">/api/v1/reservations</stringProp>
+          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+          <stringProp name="HTTPSampler.method">POST</stringProp>
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
           <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
           <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
             <collectionProp name="Arguments.arguments">
               <elementProp name="" elementType="HTTPArgument">
                 <boolProp name="HTTPArgument.always_encode">false</boolProp>
-                <stringProp name="Argument.value">{
-  &quot;clientId&quot;: ${setupClientId},
-  &quot;tableId&quot;: ${setupTableId},
-  &quot;date&quot;: &quot;${BOOKING_DATE}&quot;,
-  &quot;startTime&quot;: &quot;${CANCEL_TIME}&quot;,
-  &quot;guestCount&quot;: 4,
-  &quot;notes&quot;: &quot;JMeter concurrent cancel target&quot;
+                <stringProp name="Argument.value">{&#xd;
+  &quot;clientId&quot;: ${setupClientId},&#xd;
+  &quot;tableId&quot;: ${setupTableId},&#xd;
+  &quot;date&quot;: &quot;${BOOKING_DATE}&quot;,&#xd;
+  &quot;startTime&quot;: &quot;${CANCEL_TIME}&quot;,&#xd;
+  &quot;guestCount&quot;: 4,&#xd;
+  &quot;notes&quot;: &quot;JMeter concurrent cancel target&quot;&#xd;
 }</stringProp>
                 <stringProp name="Argument.metadata">=</stringProp>
               </elementProp>
             </collectionProp>
           </elementProp>
-          <stringProp name="HTTPSampler.domain"></stringProp>
-          <stringProp name="HTTPSampler.port"></stringProp>
-          <stringProp name="HTTPSampler.protocol"></stringProp>
-          <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
-          <stringProp name="HTTPSampler.path">/api/v1/reservations</stringProp>
-          <stringProp name="HTTPSampler.method">POST</stringProp>
-          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
-          <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
-          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
-          <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
         </HTTPSamplerProxy>
         <hashTree>
           <UserParameters guiclass="UserParametersGui" testclass="UserParameters" testname="Publicar sg.tableId" enabled="true">
@@ -245,7 +220,7 @@
               <stringProp name="1">_pubTableId</stringProp>
             </collectionProp>
             <collectionProp name="UserParameters.thread_values">
-              <collectionProp name="1">
+              <collectionProp name="2059404024">
                 <stringProp name="1">${__setProperty(sg.tableId,${setupTableId},)}</stringProp>
               </collectionProp>
             </collectionProp>
@@ -270,21 +245,16 @@
           </JSONPostProcessor>
           <hashTree/>
         </hashTree>
-
         <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="[Setup] 4. Confirmar datos iniciales listos" enabled="true">
-          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
-            <collectionProp name="Arguments.arguments"/>
-          </elementProp>
-          <stringProp name="HTTPSampler.domain"></stringProp>
-          <stringProp name="HTTPSampler.port"></stringProp>
-          <stringProp name="HTTPSampler.protocol"></stringProp>
           <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
           <stringProp name="HTTPSampler.path">/api/v1/reservations/${cancelReservationId}</stringProp>
-          <stringProp name="HTTPSampler.method">GET</stringProp>
           <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
-          <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+          <stringProp name="HTTPSampler.method">GET</stringProp>
           <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
-          <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+          <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="Variables definidas por el Usuario">
+            <collectionProp name="Arguments.arguments"/>
+          </elementProp>
         </HTTPSamplerProxy>
         <hashTree>
           <UserParameters guiclass="UserParametersGui" testclass="UserParameters" testname="Publicar sg.cancelReservationId" enabled="true">
@@ -292,7 +262,7 @@
               <stringProp name="1">_pubCancelResId</stringProp>
             </collectionProp>
             <collectionProp name="UserParameters.thread_values">
-              <collectionProp name="1">
+              <collectionProp name="-83295899">
                 <stringProp name="1">${__setProperty(sg.cancelReservationId,${cancelReservationId},)}</stringProp>
               </collectionProp>
             </collectionProp>
@@ -311,22 +281,15 @@
           <hashTree/>
         </hashTree>
       </hashTree>
-
-      <!-- =================================================================== -->
-      <!-- Escenario 1 (SG-PER-04): 20 reservas simultáneas misma mesa y turno -->
-      <!-- =================================================================== -->
       <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="1. SG-PER-04 — Reservas Simultáneas (Misma Mesa y Turno)" enabled="true">
-        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
-        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
-          <boolProp name="LoopController.continue_forever">false</boolProp>
-          <stringProp name="LoopController.loops">1</stringProp>
-        </elementProp>
         <stringProp name="ThreadGroup.num_threads">${THREADS}</stringProp>
-        <stringProp name="ThreadGroup.ramp_time">0</stringProp>
-        <boolProp name="ThreadGroup.scheduler">false</boolProp>
-        <stringProp name="ThreadGroup.duration"></stringProp>
-        <stringProp name="ThreadGroup.delay"></stringProp>
+        <intProp name="ThreadGroup.ramp_time">0</intProp>
         <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller">
+          <stringProp name="LoopController.loops">1</stringProp>
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+        </elementProp>
       </ThreadGroup>
       <hashTree>
         <SyncTimer guiclass="TestBeanGUI" testclass="SyncTimer" testname="Barrera Sincronizada (${THREADS} hilos)" enabled="true">
@@ -335,38 +298,33 @@
         </SyncTimer>
         <hashTree/>
         <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="[Race 1] POST /api/v1/reservations (misma mesa/turno)" enabled="true">
+          <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
+          <stringProp name="HTTPSampler.path">/api/v1/reservations</stringProp>
+          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+          <stringProp name="HTTPSampler.method">POST</stringProp>
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
           <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
           <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
             <collectionProp name="Arguments.arguments">
               <elementProp name="" elementType="HTTPArgument">
                 <boolProp name="HTTPArgument.always_encode">false</boolProp>
-                <stringProp name="Argument.value">{
-  &quot;clientId&quot;: ${__P(sg.clientId)},
-  &quot;tableId&quot;: ${__P(sg.tableId)},
-  &quot;date&quot;: &quot;${BOOKING_DATE}&quot;,
-  &quot;startTime&quot;: &quot;${BOOKING_TIME}&quot;,
-  &quot;guestCount&quot;: 4,
-  &quot;notes&quot;: &quot;JMeter thread ${__threadNum}&quot;
+                <stringProp name="Argument.value">{&#xd;
+  &quot;clientId&quot;: ${__P(sg.clientId)},&#xd;
+  &quot;tableId&quot;: ${__P(sg.tableId)},&#xd;
+  &quot;date&quot;: &quot;${BOOKING_DATE}&quot;,&#xd;
+  &quot;startTime&quot;: &quot;${BOOKING_TIME}&quot;,&#xd;
+  &quot;guestCount&quot;: 4,&#xd;
+  &quot;notes&quot;: &quot;JMeter thread ${__threadNum}&quot;&#xd;
 }</stringProp>
                 <stringProp name="Argument.metadata">=</stringProp>
               </elementProp>
             </collectionProp>
           </elementProp>
-          <stringProp name="HTTPSampler.domain"></stringProp>
-          <stringProp name="HTTPSampler.port"></stringProp>
-          <stringProp name="HTTPSampler.protocol"></stringProp>
-          <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
-          <stringProp name="HTTPSampler.path">/api/v1/reservations</stringProp>
-          <stringProp name="HTTPSampler.method">POST</stringProp>
-          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
-          <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
-          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
-          <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
         </HTTPSamplerProxy>
         <hashTree>
           <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Assert HTTP 201 o 409 (sin 500)" enabled="true">
             <collectionProp name="Asserion.test_strings">
-              <stringProp name="123456789">^(201|409)$</stringProp>
+              <stringProp name="1034362693">^(201|409)$</stringProp>
             </collectionProp>
             <stringProp name="Assertion.custom_message">Solo se permiten respuestas 201 Created o 409 Conflict</stringProp>
             <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
@@ -376,7 +334,7 @@
           <hashTree/>
           <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Assert cuerpo PENDING o RESERVATIONS_BS006" enabled="true">
             <collectionProp name="Asserion.test_strings">
-              <stringProp name="223456789">(&quot;status&quot;\s*:\s*&quot;PENDING&quot;|RESERVATIONS_BS006)</stringProp>
+              <stringProp name="663479447">(&quot;status&quot;\s*:\s*&quot;PENDING&quot;|RESERVATIONS_BS006)</stringProp>
             </collectionProp>
             <stringProp name="Assertion.custom_message">Respuesta debe ser reserva PENDING (201) o conflicto RESERVATIONS_BS006 (409)</stringProp>
             <stringProp name="Assertion.test_field">Assertion.response_data</stringProp>
@@ -386,22 +344,15 @@
           <hashTree/>
         </hashTree>
       </hashTree>
-
-      <!-- =================================================================== -->
-      <!-- Escenario 2: 20 registros simultáneos con el mismo email            -->
-      <!-- =================================================================== -->
       <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="2. Unicidad de Email — Registros Simultáneos (POST /clients)" enabled="true">
-        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
-        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
-          <boolProp name="LoopController.continue_forever">false</boolProp>
-          <stringProp name="LoopController.loops">1</stringProp>
-        </elementProp>
         <stringProp name="ThreadGroup.num_threads">${THREADS}</stringProp>
-        <stringProp name="ThreadGroup.ramp_time">0</stringProp>
-        <boolProp name="ThreadGroup.scheduler">false</boolProp>
-        <stringProp name="ThreadGroup.duration"></stringProp>
-        <stringProp name="ThreadGroup.delay"></stringProp>
+        <intProp name="ThreadGroup.ramp_time">0</intProp>
         <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller">
+          <stringProp name="LoopController.loops">1</stringProp>
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+        </elementProp>
       </ThreadGroup>
       <hashTree>
         <SyncTimer guiclass="TestBeanGUI" testclass="SyncTimer" testname="Barrera Sincronizada (${THREADS} hilos)" enabled="true">
@@ -410,35 +361,30 @@
         </SyncTimer>
         <hashTree/>
         <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="[Race 2] POST /api/v1/clients (mismo email)" enabled="true">
+          <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
+          <stringProp name="HTTPSampler.path">/api/v1/clients</stringProp>
+          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+          <stringProp name="HTTPSampler.method">POST</stringProp>
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
           <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
           <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
             <collectionProp name="Arguments.arguments">
               <elementProp name="" elementType="HTTPArgument">
                 <boolProp name="HTTPArgument.always_encode">false</boolProp>
-                <stringProp name="Argument.value">{
-  &quot;name&quot;: &quot;JMeter Race Client ${__threadNum}&quot;,
-  &quot;email&quot;: &quot;${__P(sg.sharedEmail)}&quot;,
-  &quot;phone&quot;: &quot;+56987654321&quot;
+                <stringProp name="Argument.value">{&#xd;
+  &quot;name&quot;: &quot;JMeter Race Client ${__threadNum}&quot;,&#xd;
+  &quot;email&quot;: &quot;${__P(sg.sharedEmail)}&quot;,&#xd;
+  &quot;phone&quot;: &quot;+56987654321&quot;&#xd;
 }</stringProp>
                 <stringProp name="Argument.metadata">=</stringProp>
               </elementProp>
             </collectionProp>
           </elementProp>
-          <stringProp name="HTTPSampler.domain"></stringProp>
-          <stringProp name="HTTPSampler.port"></stringProp>
-          <stringProp name="HTTPSampler.protocol"></stringProp>
-          <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
-          <stringProp name="HTTPSampler.path">/api/v1/clients</stringProp>
-          <stringProp name="HTTPSampler.method">POST</stringProp>
-          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
-          <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
-          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
-          <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
         </HTTPSamplerProxy>
         <hashTree>
           <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Assert HTTP 201 o 409 (sin 500)" enabled="true">
             <collectionProp name="Asserion.test_strings">
-              <stringProp name="123456789">^(201|409)$</stringProp>
+              <stringProp name="1034362693">^(201|409)$</stringProp>
             </collectionProp>
             <stringProp name="Assertion.custom_message">Solo se permiten respuestas 201 Created o 409 Conflict</stringProp>
             <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
@@ -448,7 +394,7 @@
           <hashTree/>
           <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Assert cuerpo registro exitoso o CLIENTS_BS002" enabled="true">
             <collectionProp name="Asserion.test_strings">
-              <stringProp name="223456790">(Client registered successfully|CLIENTS_BS002)</stringProp>
+              <stringProp name="-1103196349">(Client registered successfully|CLIENTS_BS002)</stringProp>
             </collectionProp>
             <stringProp name="Assertion.custom_message">Respuesta debe ser registro exitoso (201) o conflicto CLIENTS_BS002 (409)</stringProp>
             <stringProp name="Assertion.test_field">Assertion.response_data</stringProp>
@@ -458,22 +404,15 @@
           <hashTree/>
         </hashTree>
       </hashTree>
-
-      <!-- =================================================================== -->
-      <!-- Escenario 3: 20 cancelaciones simultáneas sobre la misma reserva    -->
-      <!-- =================================================================== -->
       <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="3. Cancelación Simultánea — PATCH /cancel (Misma Reserva)" enabled="true">
-        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
-        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
-          <boolProp name="LoopController.continue_forever">false</boolProp>
-          <stringProp name="LoopController.loops">1</stringProp>
-        </elementProp>
         <stringProp name="ThreadGroup.num_threads">${THREADS}</stringProp>
-        <stringProp name="ThreadGroup.ramp_time">0</stringProp>
-        <boolProp name="ThreadGroup.scheduler">false</boolProp>
-        <stringProp name="ThreadGroup.duration"></stringProp>
-        <stringProp name="ThreadGroup.delay"></stringProp>
+        <intProp name="ThreadGroup.ramp_time">0</intProp>
         <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller">
+          <stringProp name="LoopController.loops">1</stringProp>
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+        </elementProp>
       </ThreadGroup>
       <hashTree>
         <SyncTimer guiclass="TestBeanGUI" testclass="SyncTimer" testname="Barrera Sincronizada (${THREADS} hilos)" enabled="true">
@@ -482,24 +421,20 @@
         </SyncTimer>
         <hashTree/>
         <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="[Race 3] PATCH /api/v1/reservations/{id}/cancel" enabled="true">
-          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
-            <collectionProp name="Arguments.arguments"/>
-          </elementProp>
-          <stringProp name="HTTPSampler.domain"></stringProp>
-          <stringProp name="HTTPSampler.port"></stringProp>
-          <stringProp name="HTTPSampler.protocol"></stringProp>
           <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
           <stringProp name="HTTPSampler.path">/api/v1/reservations/${__P(sg.cancelReservationId)}/cancel</stringProp>
-          <stringProp name="HTTPSampler.method">PATCH</stringProp>
           <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
-          <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+          <stringProp name="HTTPSampler.method">PATCH</stringProp>
           <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
-          <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+          <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="Variables definidas por el Usuario">
+            <collectionProp name="Arguments.arguments"/>
+          </elementProp>
         </HTTPSamplerProxy>
         <hashTree>
           <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Assert HTTP 200 o 409 (sin 500)" enabled="true">
             <collectionProp name="Asserion.test_strings">
-              <stringProp name="123456790">^(200|409)$</stringProp>
+              <stringProp name="146859012">^(200|409)$</stringProp>
             </collectionProp>
             <stringProp name="Assertion.custom_message">Solo se permiten respuestas 200 OK o 409 Conflict</stringProp>
             <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
@@ -509,7 +444,7 @@
           <hashTree/>
           <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Assert cuerpo CANCELLED o RESERVATIONS_BS010" enabled="true">
             <collectionProp name="Asserion.test_strings">
-              <stringProp name="223456791">(&quot;status&quot;\s*:\s*&quot;CANCELLED&quot;|RESERVATIONS_BS010)</stringProp>
+              <stringProp name="1826959652">(&quot;status&quot;\s*:\s*&quot;CANCELLED&quot;|RESERVATIONS_BS010)</stringProp>
             </collectionProp>
             <stringProp name="Assertion.custom_message">Respuesta debe ser reserva CANCELLED (200) o conflicto RESERVATIONS_BS010 (409)</stringProp>
             <stringProp name="Assertion.test_field">Assertion.response_data</stringProp>
@@ -519,38 +454,27 @@
           <hashTree/>
         </hashTree>
       </hashTree>
-
-      <!-- =================================================================== -->
-      <!-- tearDown Thread Group: verifica invariantes exactos en data.json    -->
-      <!-- =================================================================== -->
       <PostThreadGroup guiclass="PostThreadGroupGui" testclass="PostThreadGroup" testname="tearDown — Verificar Integridad Post-Concurrencia" enabled="true">
-        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
-        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
-          <boolProp name="LoopController.continue_forever">false</boolProp>
-          <stringProp name="LoopController.loops">1</stringProp>
-        </elementProp>
-        <stringProp name="ThreadGroup.num_threads">1</stringProp>
-        <stringProp name="ThreadGroup.ramp_time">0</stringProp>
-        <boolProp name="ThreadGroup.scheduler">false</boolProp>
-        <stringProp name="ThreadGroup.duration"></stringProp>
-        <stringProp name="ThreadGroup.delay"></stringProp>
+        <intProp name="ThreadGroup.num_threads">1</intProp>
+        <intProp name="ThreadGroup.ramp_time">0</intProp>
         <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller">
+          <stringProp name="LoopController.loops">1</stringProp>
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+        </elementProp>
       </PostThreadGroup>
       <hashTree>
         <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="[Verify] 1. Confirmar exactamente 1 reserva PENDING persistida" enabled="true">
-          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
-            <collectionProp name="Arguments.arguments"/>
-          </elementProp>
-          <stringProp name="HTTPSampler.domain"></stringProp>
-          <stringProp name="HTTPSampler.port"></stringProp>
-          <stringProp name="HTTPSampler.protocol"></stringProp>
           <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
           <stringProp name="HTTPSampler.path">/api/v1/reservations?date=${BOOKING_DATE}&amp;tableId=${__P(sg.tableId)}&amp;status=PENDING</stringProp>
-          <stringProp name="HTTPSampler.method">GET</stringProp>
           <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
-          <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+          <stringProp name="HTTPSampler.method">GET</stringProp>
           <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
-          <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+          <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="Variables definidas por el Usuario">
+            <collectionProp name="Arguments.arguments"/>
+          </elementProp>
         </HTTPSamplerProxy>
         <hashTree>
           <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Assert HTTP 200" enabled="true">
@@ -582,21 +506,16 @@
           </JSONPathAssertion>
           <hashTree/>
         </hashTree>
-
         <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="[Verify] 2. Confirmar liberación inmediata de disponibilidad tras cancelación" enabled="true">
-          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
-            <collectionProp name="Arguments.arguments"/>
-          </elementProp>
-          <stringProp name="HTTPSampler.domain"></stringProp>
-          <stringProp name="HTTPSampler.port"></stringProp>
-          <stringProp name="HTTPSampler.protocol"></stringProp>
           <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
           <stringProp name="HTTPSampler.path">/api/v1/tables/availability?date=${BOOKING_DATE}&amp;time=${CANCEL_TIME}&amp;guests=4</stringProp>
-          <stringProp name="HTTPSampler.method">GET</stringProp>
           <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
-          <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+          <stringProp name="HTTPSampler.method">GET</stringProp>
           <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
-          <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+          <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="Variables definidas por el Usuario">
+            <collectionProp name="Arguments.arguments"/>
+          </elementProp>
         </HTTPSamplerProxy>
         <hashTree>
           <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Assert HTTP 200" enabled="true">
@@ -611,7 +530,7 @@
           <hashTree/>
           <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Assert mesa cancelada volvió a estar disponible" enabled="true">
             <collectionProp name="Asserion.test_strings">
-              <stringProp name="323456791">&quot;id&quot;\s*:\s*${__P(sg.tableId)}\b</stringProp>
+              <stringProp name="625879039">&quot;id&quot;\s*:\s*${__P(sg.tableId)}\b</stringProp>
             </collectionProp>
             <stringProp name="Assertion.custom_message">La mesa cancelada debe aparecer disponible en /availability</stringProp>
             <stringProp name="Assertion.test_field">Assertion.response_data</stringProp>
@@ -621,10 +540,6 @@
           <hashTree/>
         </hashTree>
       </hashTree>
-
-      <!-- =================================================================== -->
-      <!-- Listeners para ejecución interactiva en GUI                         -->
-      <!-- =================================================================== -->
       <ResultCollector guiclass="SummaryReport" testclass="ResultCollector" testname="Summary Report" enabled="true">
         <boolProp name="ResultCollector.error_logging">false</boolProp>
         <objProp>
