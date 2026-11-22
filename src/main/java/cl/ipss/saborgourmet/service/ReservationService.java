@@ -233,16 +233,17 @@ public class ReservationService {
             throw new BusinessRuleException(ErrorCode.RESERVATION_IN_THE_PAST);
         }
 
-        LocalDateTime computedEnd = requestedStart.plusMinutes(properties.turnDurationMinutes());
-        LocalDateTime closingLimit = LocalDateTime.of(date, properties.closingTime());
-        if (startTime.isBefore(properties.openingTime()) || computedEnd.isAfter(closingLimit)) {
+        LocalDateTime epochStart = LocalDateTime.of(LocalDate.EPOCH, startTime);
+        LocalDateTime epochEnd = epochStart.plusMinutes(properties.turnDurationMinutes());
+        LocalDateTime epochClosing = LocalDateTime.of(LocalDate.EPOCH, properties.closingTime());
+        if (startTime.isBefore(properties.openingTime()) || epochEnd.isAfter(epochClosing)) {
             throw new BusinessRuleException(
                     ErrorCode.RESERVATION_OUTSIDE_BUSINESS_HOURS,
                     properties.openingTime(),
                     properties.closingTime()
             );
         }
-        return computedEnd.toLocalTime();
+        return epochEnd.toLocalTime();
     }
 
     private void assertClientCanBook(Long clientId) {

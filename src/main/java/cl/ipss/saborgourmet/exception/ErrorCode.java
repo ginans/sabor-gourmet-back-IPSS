@@ -108,6 +108,12 @@ public enum ErrorCode {
             ErrorCategory.BUSINESS,
             HttpStatus.CONFLICT
     ),
+    CLIENT_BANNED_UPDATE_BLOCKED(
+            "CLIENTS_BS008",
+            "Banned clients cannot be modified directly. Lift the ban before updating this client.",
+            ErrorCategory.BUSINESS,
+            HttpStatus.CONFLICT
+    ),
 
     TABLE_NOT_FOUND(
             "TABLES_BS001",

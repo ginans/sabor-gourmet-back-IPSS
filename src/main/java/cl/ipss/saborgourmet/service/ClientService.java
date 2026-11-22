@@ -86,13 +86,17 @@ public class ClientService {
     }
 
     /**
-     * Actualiza los datos de un cliente no eliminado, persistiendo solo si hubo cambios reales
+     * Actualiza los datos de un cliente activo, persistiendo solo si hubo cambios reales
      * y reportando únicamente los nombres de los campos modificados.
+     * Exige levantar previamente el estado {@code BANNED} para impedir la evasión del baneo mediante cambio de correo.
      */
     public OperationResponse update(Long id, ClientRequest request) {
         return transactionManager.executeWrite(() -> {
             Client existing = getClientOrThrow(id);
             ensureNotDeleted(existing);
+            if (existing.getStatus() == ClientStatus.BANNED) {
+                throw new BusinessConflictException(ErrorCode.CLIENT_BANNED_UPDATE_BLOCKED);
+            }
 
             String normalizedName = request.name().trim();
             String normalizedEmail = normalizeEmail(request.email());

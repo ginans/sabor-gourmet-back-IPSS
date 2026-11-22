@@ -96,7 +96,7 @@ public class ClientController {
                     content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
             @ApiResponse(responseCode = "404", description = "Client not found",
                     content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
-            @ApiResponse(responseCode = "409", description = "Email conflict or client is deleted",
+            @ApiResponse(responseCode = "409", description = "Email conflict, client is banned, or client is deleted",
                     content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     })
     public ResponseEntity<OperationResponse> update(

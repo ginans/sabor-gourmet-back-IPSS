@@ -40,7 +40,7 @@ El manejo centralizado de excepciones ([`GlobalExceptionHandler`](src/main/java/
 
 ## Ejecución Rápida
 
-### 1. Ejecutar pruebas automatizadas (54 tests: unitarios, integración, regresión y concurrencia)
+### 1. Ejecutar pruebas automatizadas (55 tests: unitarios, integración, regresión y concurrencia)
 ```bash
 ./mvnw clean test
 ```
@@ -52,10 +52,11 @@ El manejo centralizado de excepciones ([`GlobalExceptionHandler`](src/main/java/
 ```
 La API queda disponible en `http://localhost:8080`.
 
-### 3. Documentación interactiva (Swagger UI) y Postman
+### 3. Documentación interactiva (Swagger UI), Postman y JMeter
 * **Swagger UI:** `http://localhost:8080/swagger-ui.html`
 * **OpenAPI JSON:** `http://localhost:8080/v3/api-docs`
 * **Colección Postman (parametrizada y reproducible):** [`postman/SaborGourmet.postman_collection.json`](./postman/SaborGourmet.postman_collection.json)
+* **Plan de concurrencia Apache JMeter (3 escenarios con barrera sincronizada):** [`jmeter/SaborGourmet-Concurrency.jmx`](./jmeter/SaborGourmet-Concurrency.jmx) ([guía de ejecución](./jmeter/README.md))
 
 ---
 

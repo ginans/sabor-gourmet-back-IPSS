@@ -20,6 +20,7 @@ import cl.ipss.saborgourmet.repository.ReservationRepository;
 import cl.ipss.saborgourmet.repository.json.JsonFileStorage;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.net.URI;
 import java.nio.file.Files;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -125,6 +126,21 @@ class ClientControllerIntegrationTest {
                 .andExpect(status().isNotAcceptable())
                 .andExpect(result -> assertThat(result.getResponse().getContentAsString()).isEmpty());
 
+        mockMvc.perform(get(ApiConstants.CLIENTS_PATH + "/99999")
+                        .accept(MediaType.APPLICATION_XML))
+                .andExpect(status().isNotAcceptable())
+                .andExpect(result -> assertThat(result.getResponse().getContentAsString()).isEmpty());
+
+        mockMvc.perform(get(ApiConstants.CLIENTS_PATH + "/99999")
+                        .accept(MediaType.TEXT_PLAIN))
+                .andExpect(status().isNotAcceptable())
+                .andExpect(result -> assertThat(result.getResponse().getContentAsString()).isEmpty());
+
+        mockMvc.perform(get(URI.create(ApiConstants.CLIENTS_PATH + "/%20")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.category").value("VALIDATION"))
+                .andExpect(jsonPath("$.code").value(ErrorCode.INVALID_PARAMETER_TYPE.getCode()));
+
         mockMvc.perform(get(ApiConstants.CLIENTS_PATH + "/-1"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.fieldErrors.id").exists());
@@ -206,6 +222,18 @@ class ClientControllerIntegrationTest {
         mockMvc.perform(delete(ApiConstants.CLIENTS_PATH + "/" + clientWithoutHistoryId))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value(ErrorCode.CLIENT_BANNED_DELETE_BLOCKED.getCode()));
+
+        mockMvc.perform(put(ApiConstants.CLIENTS_PATH + "/" + clientWithoutHistoryId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "Luis Alberto Soto",
+                                  "email": "evasion@correo.cl",
+                                  "phone": "+56 9 5555-6666"
+                                }
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value(ErrorCode.CLIENT_BANNED_UPDATE_BLOCKED.getCode()));
 
         mockMvc.perform(patch(ApiConstants.CLIENTS_PATH + "/" + clientWithoutHistoryId + "/status")
                         .contentType(MediaType.APPLICATION_JSON)

@@ -145,6 +145,17 @@ class ReservationServiceTest {
                 .isInstanceOf(BusinessRuleException.class)
                 .extracting(ex -> ((BusinessRuleException) ex).getErrorCode())
                 .isEqualTo(ErrorCode.RESERVATION_OUTSIDE_BUSINESS_HOURS);
+
+        assertThatThrownBy(() -> reservationService.create(
+                new ReservationRequest(1L, 1L, LocalDate.MAX, LocalTime.of(22, 30), 2, null)))
+                .isInstanceOf(BusinessRuleException.class)
+                .extracting(ex -> ((BusinessRuleException) ex).getErrorCode())
+                .isEqualTo(ErrorCode.RESERVATION_OUTSIDE_BUSINESS_HOURS);
+
+        assertThatThrownBy(() -> reservationService.checkAvailability(LocalDate.MAX, LocalTime.of(22, 30), 2))
+                .isInstanceOf(BusinessRuleException.class)
+                .extracting(ex -> ((BusinessRuleException) ex).getErrorCode())
+                .isEqualTo(ErrorCode.RESERVATION_OUTSIDE_BUSINESS_HOURS);
     }
 
     @Test

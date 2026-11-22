@@ -15,6 +15,7 @@ import cl.ipss.saborgourmet.model.ReservationStatus;
 import cl.ipss.saborgourmet.repository.json.JsonFileStorage;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.net.URI;
 import java.nio.file.Files;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -252,6 +253,29 @@ class ReservationControllerIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.fieldErrors.clientId").exists())
                 .andExpect(jsonPath("$.fieldErrors.tableId").exists());
+
+        mockMvc.perform(get(ApiConstants.TABLES_PATH + "/availability")
+                        .param("date", LocalDate.MAX.toString())
+                        .param("time", "22:30")
+                        .param("guests", "2"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.category").value("BUSINESS"))
+                .andExpect(jsonPath("$.code").value(ErrorCode.RESERVATION_OUTSIDE_BUSINESS_HOURS.getCode()));
+
+        mockMvc.perform(post(ApiConstants.RESERVATIONS_PATH)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(bookingPayload(1L, 1L, LocalDate.MAX, "22:30", 2)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.category").value("BUSINESS"))
+                .andExpect(jsonPath("$.code").value(ErrorCode.RESERVATION_OUTSIDE_BUSINESS_HOURS.getCode()));
+
+        mockMvc.perform(get(URI.create(ApiConstants.RESERVATIONS_PATH + "/%20")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(ErrorCode.INVALID_PARAMETER_TYPE.getCode()));
+
+        mockMvc.perform(patch(URI.create(ApiConstants.RESERVATIONS_PATH + "/%20/cancel")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(ErrorCode.INVALID_PARAMETER_TYPE.getCode()));
     }
 
     private Long createClient(String name, String email, String phone) throws Exception {

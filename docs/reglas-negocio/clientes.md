@@ -53,10 +53,10 @@ Característica: Gestión de clients del restaurante
     Y los cambios normalizados se persisten en "data/data.json" solo si existieron modificaciones
 
   @SG-CLI-07
-  Escenario: Rechazo de actualización de client por conflicto de email duplicado
-    Dado que existen el client 1 y el client 2 no eliminados
-    Cuando envío PUT /api/v1/clients/1 utilizando el email que ya pertenece al client 2
-    Entonces la respuesta es HTTP 409 Conflict con categoría "BUSINESS" y código "CLIENTS_BS002"
+  Escenario: Rechazo de actualización de client por conflicto de email duplicado o estado BANNED/DELETED
+    Dado que existen el client 1 y el client 2 no eliminados, o el client 1 se encuentra en estado "BANNED" o "DELETED"
+    Cuando envío PUT /api/v1/clients/1 utilizando el email del client 2, o intentando modificar un client "BANNED" o "DELETED"
+    Entonces la respuesta es HTTP 409 Conflict con categoría "BUSINESS" y código "CLIENTS_BS002", "CLIENTS_BS008" o "CLIENTS_BS003"
 
   @SG-CLI-08
   Escenario: Cambio manual de estado (baneo o rehabilitación) por el personal

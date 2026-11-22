@@ -229,6 +229,22 @@ class ClientServiceTest {
     }
 
     @Test
+    @DisplayName("Regression: Blocks profile updates on BANNED clients to prevent email-swap ban evasion")
+    void updateBlocksBannedClientToPreventBanEvasion() {
+        Client banned = Client.builder()
+                .id(4L).name("Ana").email("ana@correo.cl").phone("+56912345678")
+                .status(ClientStatus.BANNED).lateCancellations(3).build();
+        when(clientRepository.findById(4L)).thenReturn(Optional.of(banned));
+
+        assertThatThrownBy(() -> clientService.update(
+                4L, new ClientRequest("Ana", "throwaway@correo.cl", "+56912345678")))
+                .isInstanceOf(BusinessConflictException.class)
+                .extracting(ex -> ((BusinessConflictException) ex).getErrorCode())
+                .isEqualTo(ErrorCode.CLIENT_BANNED_UPDATE_BLOCKED);
+        verify(clientRepository, never()).save(any());
+    }
+
+    @Test
     @DisplayName("SG-CLI-09: Rejects status change on DELETED client or manual transition to DELETED")
     void updateStatusRejectsDeletedClientAndInvalidTarget() {
         Client deleted = Client.builder().id(2L).status(ClientStatus.DELETED).build();
