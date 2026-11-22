@@ -2,15 +2,21 @@ package cl.ipss.saborgourmet.dto.reservation;
 
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
 import java.time.LocalTime;
 
+/**
+ * Datos de entrada validados para crear o modificar una reserva de mesa.
+ */
 public record ReservationRequest(
         @NotNull(message = "Client ID is required")
+        @Positive(message = "Client ID must be positive")
         Long clientId,
 
         @NotNull(message = "Table ID is required")
+        @Positive(message = "Table ID must be positive")
         Long tableId,
 
         @NotNull(message = "Reservation date is required")

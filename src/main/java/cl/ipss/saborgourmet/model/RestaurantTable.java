@@ -6,6 +6,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+/**
+ * Representa una mesa física configurable del restaurante (número único, capacidad, ubicación y estado operativo).
+ */
 @Getter
 @Setter
 @NoArgsConstructor

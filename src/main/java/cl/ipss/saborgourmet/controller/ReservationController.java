@@ -8,15 +8,29 @@ import cl.ipss.saborgourmet.service.ReservationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
 import java.net.URI;
 import java.time.LocalDate;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+/**
+ * Controlador REST para gestionar el ciclo de vida de reservas bajo {@code /api/v1/reservations}.
+ */
+@Validated
 @RestController
 @RequestMapping(ApiConstants.RESERVATIONS_PATH)
 @RequiredArgsConstructor
@@ -37,7 +51,8 @@ public class ReservationController {
 
     @GetMapping("/{id}")
     @Operation(summary = "Get reservation by ID")
-    public ResponseEntity<ReservationResponse> findById(@PathVariable Long id) {
+    public ResponseEntity<ReservationResponse> findById(
+            @PathVariable @Positive(message = "Reservation ID must be positive") Long id) {
         return ResponseEntity.ok(reservationService.findById(id));
     }
 
@@ -55,20 +70,22 @@ public class ReservationController {
     @PutMapping("/{id}")
     @Operation(summary = "Update active reservation")
     public ResponseEntity<ReservationResponse> update(
-            @PathVariable Long id,
+            @PathVariable @Positive(message = "Reservation ID must be positive") Long id,
             @Valid @RequestBody ReservationRequest request) {
         return ResponseEntity.ok(reservationService.update(id, request));
     }
 
     @PatchMapping("/{id}/confirm")
     @Operation(summary = "Confirm pending reservation")
-    public ResponseEntity<ReservationResponse> confirm(@PathVariable Long id) {
+    public ResponseEntity<ReservationResponse> confirm(
+            @PathVariable @Positive(message = "Reservation ID must be positive") Long id) {
         return ResponseEntity.ok(reservationService.confirm(id));
     }
 
     @PatchMapping("/{id}/cancel")
     @Operation(summary = "Cancel reservation and release table availability")
-    public ResponseEntity<ReservationResponse> cancel(@PathVariable Long id) {
+    public ResponseEntity<ReservationResponse> cancel(
+            @PathVariable @Positive(message = "Reservation ID must be positive") Long id) {
         return ResponseEntity.ok(reservationService.cancel(id));
     }
 }

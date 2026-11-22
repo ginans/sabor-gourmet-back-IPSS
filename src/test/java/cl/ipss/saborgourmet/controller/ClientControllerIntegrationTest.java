@@ -80,6 +80,30 @@ class ClientControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
+                                  "name": " a ",
+                                  "email": "valid@correo.cl",
+                                  "phone": "-------"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.name").exists())
+                .andExpect(jsonPath("$.fieldErrors.phone").exists());
+
+        mockMvc.perform(post(ApiConstants.CLIENTS_PATH)
+                        .contentType(MediaType.TEXT_PLAIN)
+                        .content("plain text"))
+                .andExpect(status().isUnsupportedMediaType())
+                .andExpect(jsonPath("$.category").value("VALIDATION"))
+                .andExpect(jsonPath("$.code").value(ErrorCode.UNSUPPORTED_MEDIA_TYPE.getCode()));
+
+        mockMvc.perform(get(ApiConstants.CLIENTS_PATH + "/-1"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.id").exists());
+
+        mockMvc.perform(post(ApiConstants.CLIENTS_PATH)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
                                   "name": "Ana Perez",
                                   "email": "ANA.PEREZ@correo.cl",
                                   "phone": "+56 9 1234-5678"

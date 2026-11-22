@@ -2,20 +2,21 @@ package cl.ipss.saborgourmet.exception;
 
 import cl.ipss.saborgourmet.dto.error.ApiErrorResponse;
 import cl.ipss.saborgourmet.dto.error.ErrorCategory;
-import cl.ipss.saborgourmet.exception.business.BusinessConflictException;
-import cl.ipss.saborgourmet.exception.business.BusinessRuleException;
-import cl.ipss.saborgourmet.exception.business.ResourceNotFoundException;
+import cl.ipss.saborgourmet.exception.business.DomainException;
 import cl.ipss.saborgourmet.exception.infrastructure.DataStorageException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
+import org.springframework.web.HttpMediaTypeNotAcceptableException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
@@ -25,14 +26,15 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
- * Centralized REST exception handler that maps validation, business, and
- * infrastructure errors into consistent {@link ApiErrorResponse} JSON payloads
- * using {@link ErrorCode}, without exposing internal stack traces.
+ * Manejador global de excepciones REST que traduce errores de validación,
+ * negocio e infraestructura a {@link ApiErrorResponse} sin exponer trazas internas.
  */
+@Slf4j
 @RestControllerAdvice
+@RequiredArgsConstructor
 public class GlobalExceptionHandler {
 
-    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+    private final Clock clock;
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiErrorResponse> handleMethodArgumentNotValid(
@@ -55,8 +57,13 @@ public class GlobalExceptionHandler {
             ConstraintViolationException ex,
             HttpServletRequest request) {
         Map<String, String> fieldErrors = new LinkedHashMap<>();
-        ex.getConstraintViolations().forEach(violation ->
-                fieldErrors.putIfAbsent(violation.getPropertyPath().toString(), violation.getMessage()));
+        ex.getConstraintViolations().forEach(violation -> {
+            String rawPath = violation.getPropertyPath().toString();
+            String fieldName = rawPath.contains(".")
+                    ? rawPath.substring(rawPath.lastIndexOf('.') + 1)
+                    : rawPath;
+            fieldErrors.putIfAbsent(fieldName, violation.getMessage());
+        });
         return buildResponse(
                 ErrorCode.CONSTRAINT_VIOLATION,
                 ErrorCode.CONSTRAINT_VIOLATION.formatMessage(),
@@ -99,23 +106,26 @@ public class GlobalExceptionHandler {
         return buildResponse(errorCode, errorCode.formatMessage(), request.getRequestURI(), null);
     }
 
-    @ExceptionHandler(BusinessRuleException.class)
-    public ResponseEntity<ApiErrorResponse> handleBusinessRule(
-            BusinessRuleException ex,
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<ApiErrorResponse> handleUnsupportedMediaType(
+            HttpMediaTypeNotSupportedException ex,
             HttpServletRequest request) {
-        return buildResponse(ex.getErrorCode(), ex.getMessage(), request.getRequestURI(), null);
+        ErrorCode errorCode = ErrorCode.UNSUPPORTED_MEDIA_TYPE;
+        String contentType = ex.getContentType() != null ? ex.getContentType().toString() : "unknown";
+        return buildResponse(errorCode, errorCode.formatMessage(contentType), request.getRequestURI(), null);
     }
 
-    @ExceptionHandler(ResourceNotFoundException.class)
-    public ResponseEntity<ApiErrorResponse> handleResourceNotFound(
-            ResourceNotFoundException ex,
+    @ExceptionHandler(HttpMediaTypeNotAcceptableException.class)
+    public ResponseEntity<ApiErrorResponse> handleNotAcceptable(
+            HttpMediaTypeNotAcceptableException ex,
             HttpServletRequest request) {
-        return buildResponse(ex.getErrorCode(), ex.getMessage(), request.getRequestURI(), null);
+        ErrorCode errorCode = ErrorCode.NOT_ACCEPTABLE;
+        return buildResponse(errorCode, errorCode.formatMessage(), request.getRequestURI(), null);
     }
 
-    @ExceptionHandler(BusinessConflictException.class)
-    public ResponseEntity<ApiErrorResponse> handleBusinessConflict(
-            BusinessConflictException ex,
+    @ExceptionHandler(DomainException.class)
+    public ResponseEntity<ApiErrorResponse> handleDomainException(
+            DomainException ex,
             HttpServletRequest request) {
         return buildResponse(ex.getErrorCode(), ex.getMessage(), request.getRequestURI(), null);
     }
@@ -170,7 +180,7 @@ public class GlobalExceptionHandler {
             log.warn("Business error [{}] at {}: {}", errorCode.getCode(), path, message);
         }
         ApiErrorResponse body = new ApiErrorResponse(
-                Instant.now(),
+                Instant.now(clock),
                 errorCode.getHttpStatus().value(),
                 errorCode.getHttpStatus().getReasonPhrase(),
                 errorCode.getCategory(),

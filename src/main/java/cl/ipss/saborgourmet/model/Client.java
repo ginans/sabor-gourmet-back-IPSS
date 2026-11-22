@@ -7,6 +7,9 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.FieldNameConstants;
 
+/**
+ * Representa a un cliente registrado en el sistema con control de estado y cancelaciones tardías.
+ */
 @Getter
 @Setter
 @NoArgsConstructor

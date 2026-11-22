@@ -2,6 +2,7 @@ package cl.ipss.saborgourmet.repository.json;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
 import cl.ipss.saborgourmet.config.StorageProperties;
 import cl.ipss.saborgourmet.exception.infrastructure.DataStorageException;
@@ -10,11 +11,13 @@ import cl.ipss.saborgourmet.model.ClientStatus;
 import cl.ipss.saborgourmet.model.Reservation;
 import cl.ipss.saborgourmet.model.ReservationStatus;
 import cl.ipss.saborgourmet.model.RestaurantTable;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.ArrayList;
@@ -162,5 +165,55 @@ class JsonFileStorageTest {
         List<Client> allClients = clientRepository.findAll();
         assertThat(allClients).hasSize(threads);
         assertThat(allClients.stream().map(Client::getId).distinct().count()).isEqualTo(threads);
+    }
+
+    @Test
+    @DisplayName("Regression: executeRead when JSON file is missing never deadlocks on lock upgrade")
+    void executeReadWhenFileMissingDoesNotDeadlock() {
+        assertThat(Files.exists(storageFile)).isFalse();
+        List<Client> result = assertTimeoutPreemptively(
+                Duration.ofSeconds(2),
+                () -> storage.executeRead(() -> clientRepository.findAll())
+        );
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Regression: executeWrite rolls back multi-entity mutations if an exception occurs before completion")
+    void executeWriteIsAtomicAcrossMultipleRepositories() {
+        storage.initialize();
+        assertThatThrownBy(() -> storage.executeWrite(() -> {
+            clientRepository.save(Client.builder()
+                    .name("Ana").email("ana@correo.cl").phone("+56912345678").status(ClientStatus.ACTIVE).build());
+            throw new IllegalStateException("Simulated failure before commit");
+        })).isInstanceOf(IllegalStateException.class);
+
+        assertThat(clientRepository.findAll()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Regression: Deleted entity IDs are never recycled and unknown JSON fields are tolerated")
+    void doesNotRecycleIdsAndToleratesUnknownJsonFields() throws Exception {
+        Client first = clientRepository.save(Client.builder()
+                .name("First").email("first@correo.cl").phone("+56911111111").status(ClientStatus.ACTIVE).build());
+        assertThat(first.getId()).isEqualTo(1L);
+        assertThat(clientRepository.deleteById(1L)).isTrue();
+
+        Client second = clientRepository.save(Client.builder()
+                .name("Second").email("second@correo.cl").phone("+56922222222").status(ClientStatus.ACTIVE).build());
+        assertThat(second.getId()).isEqualTo(2L);
+
+        ObjectMapper strictHttpMapper = objectMapper.copy()
+                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, true);
+        Files.writeString(storageFile, """
+                {
+                  "unknownFutureField": "ignored",
+                  "clients": [],
+                  "tables": [],
+                  "reservations": []
+                }
+                """);
+        JsonFileStorage strictStorage = new JsonFileStorage(new StorageProperties(storageFile.toString()), strictHttpMapper);
+        assertThat(new JsonClientRepository(strictStorage).findAll()).isEmpty();
     }
 }

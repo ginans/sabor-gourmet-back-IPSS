@@ -1,74 +1,74 @@
-# Módulo 3: Gestión de Mesas (`SG-MES-01` a `SG-MES-10`)
+# Módulo 3: Gestión de Tables (`SG-MES-01` a `SG-MES-10`)
 
 > **Rama de implementación:** `eva2/add-tables`  
 > **Volver al índice:** [README.md](./README.md)
 
 ```gherkin
 # language: es
-Característica: Administración y configuración de mesas
+Característica: Administración y configuración de tables
   Como personal del restaurante Sabor Gourmet
-  Quiero crear, consultar, actualizar y eliminar mesas
-  Para mantener actualizada la configuración del salón sin afectar reservas vigentes
+  Quiero crear, consultar, actualizar y eliminar tables
+  Para mantener actualizada la configuración del salón sin afectar reservations vigentes
 
   @SG-MES-01
-  Escenario: Creación exitosa de una mesa
-    Dado que no existe una mesa con número 5
-    Cuando envío POST /api/v1/mesas con numero 5, capacidad 4 y ubicacion "Salón Principal"
+  Escenario: Creación exitosa de una table
+    Dado que no existe una table con number 5
+    Cuando envío POST /api/v1/tables con number 5, capacity 4 y location "Main Hall"
     Entonces la respuesta es HTTP 201 Created
-    Y la mesa queda persistida con estado activa "true"
+    Y la table queda persistida con active "true"
 
   @SG-MES-02
-  Escenario: Rechazo de creación de mesa con número duplicado
-    Dado que ya existe una mesa registrada con número 5
-    Cuando envío POST /api/v1/mesas con numero 5
-    Entonces la respuesta es HTTP 409 Conflict con categoría "BUSINESS"
+  Escenario: Rechazo de creación de table con número duplicado
+    Dado que ya existe una table registrada con number 5
+    Cuando envío POST /api/v1/tables con number 5
+    Entonces la respuesta es HTTP 409 Conflict con categoría "BUSINESS" y código "TABLES_BS002"
 
   @SG-MES-03
-  Escenario: Rechazo de creación de mesa con datos inválidos
-    Dado que preparo una solicitud de mesa con numero 0, capacidad menor a 1 o ubicación vacía
-    Cuando envío POST /api/v1/mesas
-    Entonces la respuesta es HTTP 400 Bad Request con categoría "VALIDATION"
+  Escenario: Rechazo de creación de table con datos inválidos
+    Dado que preparo una solicitud de table con number 0, capacity menor a 1 o location con menos de 2 caracteres reales
+    Cuando envío POST /api/v1/tables
+    Entonces la respuesta es HTTP 400 Bad Request con categoría "VALIDATION" y código "VALIDATION_VL001"
 
   @SG-MES-04
-  Escenario: Listado completo de mesas
-    Dado que existen mesas configuradas en el restaurante
-    Cuando envío GET /api/v1/mesas
-    Entonces la respuesta es HTTP 200 OK con el listado completo de mesas
+  Escenario: Listado completo de tables
+    Dado que existen tables configuradas en el restaurante
+    Cuando envío GET /api/v1/tables
+    Entonces la respuesta es HTTP 200 OK con el listado completo de tables
 
   @SG-MES-05
-  Escenario: Consulta de mesa inexistente por ID
-    Dado que no existe ninguna mesa registrada con el ID consultado
-    Cuando envío GET /api/v1/mesas/{idInexistente}
-    Entonces la respuesta es HTTP 404 Not Found con categoría "BUSINESS"
+  Escenario: Consulta de table inexistente por ID
+    Dado que no existe ninguna table registrada con el ID consultado
+    Cuando envío GET /api/v1/tables/{nonExistentId}
+    Entonces la respuesta es HTTP 404 Not Found con categoría "BUSINESS" y código "TABLES_BS001"
 
   @SG-MES-06
-  Escenario: Actualización exitosa de configuración de mesa
-    Dado que existe la mesa con ID 1 (número 1, capacidad 4, activa true) sin conflictos con reservas vigentes
-    Cuando envío PUT /api/v1/mesas/1 cambiando su capacidad a 6 y ubicación a "Terraza"
-    Entonces la respuesta es HTTP 200 OK con los datos actualizados en "data/datos.json"
+  Escenario: Actualización exitosa de configuración de table
+    Dado que existe la table con ID 1 (number 1, capacity 4, active true) sin conflictos con reservations vigentes
+    Cuando envío PUT /api/v1/tables/1 cambiando su capacity a 6 y location a "Terrace"
+    Entonces la respuesta es HTTP 200 OK con los datos actualizados en "data/data.json"
 
   @SG-MES-07
-  Escenario: Impedir reducción de capacidad si afecta reservas vigentes
-    Dado que la mesa con ID 1 (capacidad 6) tiene una reserva vigente ("PENDIENTE" o "CONFIRMADA") para 5 personas
-    Cuando envío PUT /api/v1/mesas/1 intentando reducir su capacidad a 4
-    Entonces la respuesta es HTTP 409 Conflict indicando que existen reservas vigentes afectadas
+  Escenario: Impedir cambios de capacidad que invaliden reservations vigentes (sobrecupo o subocupación)
+    Dado que la table con ID 1 (capacity 6) tiene una reservation vigente ("PENDING" o "CONFIRMED") para 5 personas
+    Cuando envío PUT /api/v1/tables/1 intentando reducir su capacity a 4 (o subirla rompiendo el 75% mínimo)
+    Entonces la respuesta es HTTP 409 Conflict con código "TABLES_BS003" o "TABLES_BS007"
 
   @SG-MES-08
-  Escenario: Impedir desactivación operativa de una mesa con reservas vigentes
-    Dado que la mesa con ID 1 tiene al menos una reserva vigente ("PENDIENTE" o "CONFIRMADA")
-    Cuando envío PUT /api/v1/mesas/1 con activa "false"
-    Entonces la respuesta es HTTP 409 Conflict con categoría "BUSINESS"
+  Escenario: Impedir desactivación operativa de una table con reservations vigentes
+    Dado que la table con ID 1 tiene al menos una reservation vigente ("PENDING" o "CONFIRMED")
+    Cuando envío PUT /api/v1/tables/1 con active "false"
+    Entonces la respuesta es HTTP 409 Conflict con categoría "BUSINESS" y código "TABLES_BS004"
 
   @SG-MES-09
-  Escenario: Eliminación exitosa de una mesa sin reservas asociadas
-    Dado que la mesa con ID 2 no tiene ninguna reserva asociada
-    Cuando envío DELETE /api/v1/mesas/2
+  Escenario: Eliminación exitosa de una table sin reservations asociadas
+    Dado que la table con ID 2 no tiene ninguna reservation asociada
+    Cuando envío DELETE /api/v1/tables/2
     Entonces la respuesta es HTTP 204 No Content
-    Y la mesa se elimina de "data/datos.json"
+    Y la table se elimina de "data/data.json" sin reciclar su ID
 
   @SG-MES-10
-  Escenario: Bloqueo de eliminación de una mesa con reservas asociadas
-    Dado que la mesa con ID 1 posee al menos una reserva asociada (vigente o histórica)
-    Cuando envío DELETE /api/v1/mesas/1
-    Entonces la respuesta es HTTP 409 Conflict protegiendo la integridad referencial
+  Escenario: Bloqueo de eliminación de una table con reservations asociadas
+    Dado que la table con ID 1 posee al menos una reservation asociada (vigente o histórica)
+    Cuando envío DELETE /api/v1/tables/1
+    Entonces la respuesta es HTTP 409 Conflict con código "TABLES_BS005" protegiendo la integridad referencial
 ```

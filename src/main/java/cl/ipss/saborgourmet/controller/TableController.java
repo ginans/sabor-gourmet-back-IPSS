@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Positive;
 import java.net.URI;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -18,9 +19,20 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+/**
+ * Controlador REST para la gestión de mesas y consulta de disponibilidad bajo {@code /api/v1/tables}.
+ */
 @Validated
 @RestController
 @RequestMapping(ApiConstants.TABLES_PATH)
@@ -49,7 +61,8 @@ public class TableController {
 
     @GetMapping("/{id}")
     @Operation(summary = "Get table by ID")
-    public ResponseEntity<TableResponse> findById(@PathVariable Long id) {
+    public ResponseEntity<TableResponse> findById(
+            @PathVariable @Positive(message = "Table ID must be positive") Long id) {
         return ResponseEntity.ok(tableService.findById(id));
     }
 
@@ -67,14 +80,15 @@ public class TableController {
     @PutMapping("/{id}")
     @Operation(summary = "Update table configuration")
     public ResponseEntity<TableResponse> update(
-            @PathVariable Long id,
+            @PathVariable @Positive(message = "Table ID must be positive") Long id,
             @Valid @RequestBody TableRequest request) {
         return ResponseEntity.ok(tableService.update(id, request));
     }
 
     @DeleteMapping("/{id}")
     @Operation(summary = "Delete table", description = "Deletes a table only if it has no associated reservations")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
+    public ResponseEntity<Void> delete(
+            @PathVariable @Positive(message = "Table ID must be positive") Long id) {
         tableService.delete(id);
         return ResponseEntity.noContent().build();
     }

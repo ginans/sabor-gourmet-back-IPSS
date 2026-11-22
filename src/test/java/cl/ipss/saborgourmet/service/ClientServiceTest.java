@@ -24,8 +24,12 @@ import cl.ipss.saborgourmet.model.ReservationStatus;
 import cl.ipss.saborgourmet.repository.ClientRepository;
 import cl.ipss.saborgourmet.repository.ReservationRepository;
 import cl.ipss.saborgourmet.repository.StorageTransactionManager;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
@@ -34,12 +38,14 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class ClientServiceTest {
+
+    private static final ZoneId ZONE = ZoneId.of("America/Santiago");
+    private static final Instant FIXED_NOW = LocalDateTime.of(2026, 12, 1, 10, 0).atZone(ZONE).toInstant();
 
     @Mock
     private ClientRepository clientRepository;
@@ -50,11 +56,12 @@ class ClientServiceTest {
     @Mock
     private StorageTransactionManager transactionManager;
 
-    @InjectMocks
     private ClientService clientService;
 
     @BeforeEach
     void setUp() {
+        clientService = new ClientService(
+                clientRepository, reservationRepository, transactionManager, Clock.fixed(FIXED_NOW, ZONE));
         lenient().when(transactionManager.executeRead(any())).thenAnswer(inv -> {
             Supplier<?> supplier = inv.getArgument(0);
             return supplier.get();
@@ -237,12 +244,12 @@ class ClientServiceTest {
                 .status(ClientStatus.ACTIVE).build();
         Reservation cancelled = Reservation.builder()
                 .id(10L).clientId(2L).tableId(1L)
-                .date(LocalDate.now().plusDays(2))
+                .date(LocalDate.of(2026, 12, 3))
                 .startTime(LocalTime.of(20, 0)).endTime(LocalTime.of(22, 0))
                 .status(ReservationStatus.CANCELLED).build();
         Reservation past = Reservation.builder()
                 .id(11L).clientId(2L).tableId(1L)
-                .date(LocalDate.now().minusDays(3))
+                .date(LocalDate.of(2026, 11, 28))
                 .startTime(LocalTime.of(20, 0)).endTime(LocalTime.of(22, 0))
                 .status(ReservationStatus.CONFIRMED).build();
 
@@ -268,7 +275,7 @@ class ClientServiceTest {
         Client client = Client.builder().id(3L).status(ClientStatus.ACTIVE).build();
         Reservation upcoming = Reservation.builder()
                 .id(12L).clientId(3L).tableId(1L)
-                .date(LocalDate.now().plusDays(1))
+                .date(LocalDate.of(2026, 12, 2))
                 .startTime(LocalTime.of(20, 0)).endTime(LocalTime.of(22, 0))
                 .status(ReservationStatus.PENDING).build();
 
@@ -280,6 +287,23 @@ class ClientServiceTest {
                 .extracting(ex -> ((BusinessConflictException) ex).getErrorCode())
                 .isEqualTo(ErrorCode.CLIENT_HAS_ACTIVE_RESERVATIONS);
         verify(clientRepository, never()).deleteById(3L);
+        verify(clientRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Regression: Skips disk save when update receives identical values")
+    void updateSkipsSaveWhenNoFieldChanges() {
+        Client existing = Client.builder()
+                .id(1L).name("Ana").email("ana@correo.cl").phone("+56911111111")
+                .status(ClientStatus.ACTIVE).build();
+        when(clientRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(clientRepository.findByEmailAndStatusNot("ana@correo.cl", ClientStatus.DELETED))
+                .thenReturn(Optional.of(existing));
+
+        OperationResponse response = clientService.update(
+                1L, new ClientRequest("Ana", "ana@correo.cl", "+56911111111"));
+
+        assertThat(response.updatedFields()).isEmpty();
         verify(clientRepository, never()).save(any());
     }
 }

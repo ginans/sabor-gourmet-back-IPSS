@@ -3,15 +3,33 @@ package cl.ipss.saborgourmet.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.when;
 
 import cl.ipss.saborgourmet.config.ReservationProperties;
-import cl.ipss.saborgourmet.dto.reservation.*;
+import cl.ipss.saborgourmet.dto.reservation.AvailabilityResponse;
+import cl.ipss.saborgourmet.dto.reservation.AvailableTableResponse;
+import cl.ipss.saborgourmet.dto.reservation.ReservationRequest;
+import cl.ipss.saborgourmet.dto.reservation.ReservationResponse;
 import cl.ipss.saborgourmet.exception.ErrorCode;
-import cl.ipss.saborgourmet.exception.business.*;
-import cl.ipss.saborgourmet.model.*;
-import cl.ipss.saborgourmet.repository.*;
-import java.time.*;
+import cl.ipss.saborgourmet.exception.business.BusinessConflictException;
+import cl.ipss.saborgourmet.exception.business.BusinessRuleException;
+import cl.ipss.saborgourmet.exception.business.ResourceNotFoundException;
+import cl.ipss.saborgourmet.model.Client;
+import cl.ipss.saborgourmet.model.ClientStatus;
+import cl.ipss.saborgourmet.model.Reservation;
+import cl.ipss.saborgourmet.model.ReservationStatus;
+import cl.ipss.saborgourmet.model.RestaurantTable;
+import cl.ipss.saborgourmet.repository.ClientRepository;
+import cl.ipss.saborgourmet.repository.ReservationRepository;
+import cl.ipss.saborgourmet.repository.StorageTransactionManager;
+import cl.ipss.saborgourmet.repository.TableRepository;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
@@ -71,12 +89,11 @@ class ReservationServiceTest {
         RestaurantTable table4Inactive = RestaurantTable.builder().id(5L).number(5).capacity(4).location("Patio").active(false).build();
 
         when(tableRepository.findAll()).thenReturn(List.of(table2, table4Occupied, table4Free, table6TooBig, table4Inactive));
-        when(reservationRepository.findByTableIdAndDate(2L, date)).thenReturn(List.of(
+        when(reservationRepository.findByDate(date)).thenReturn(List.of(
                 Reservation.builder().id(10L).tableId(2L).date(date)
                         .startTime(LocalTime.of(19, 0)).endTime(LocalTime.of(21, 0))
                         .status(ReservationStatus.CONFIRMED).build()
         ));
-        when(reservationRepository.findByTableIdAndDate(3L, date)).thenReturn(List.of());
 
         AvailabilityResponse result = reservationService.checkAvailability(date, LocalTime.of(20, 0), 3);
 
@@ -239,7 +256,9 @@ class ReservationServiceTest {
     @Test
     @DisplayName("SG-RES-16 / SG-RES-17: Confirms pending reservation and rejects already confirmed or cancelled")
     void confirmTransitionsOnlyFromPending() {
-        Reservation pending = Reservation.builder().id(1L).status(ReservationStatus.PENDING).build();
+        Reservation pending = Reservation.builder()
+                .id(1L).date(LocalDate.of(2026, 12, 5)).startTime(LocalTime.of(20, 0))
+                .status(ReservationStatus.PENDING).build();
         when(reservationRepository.findById(1L)).thenReturn(Optional.of(pending));
         when(reservationRepository.save(any(Reservation.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -251,12 +270,54 @@ class ReservationServiceTest {
                 .extracting(ex -> ((BusinessConflictException) ex).getErrorCode())
                 .isEqualTo(ErrorCode.RESERVATION_ALREADY_CONFIRMED);
 
-        Reservation cancelled = Reservation.builder().id(2L).status(ReservationStatus.CANCELLED).build();
+        Reservation cancelled = Reservation.builder()
+                .id(2L).date(LocalDate.of(2026, 12, 5)).startTime(LocalTime.of(20, 0))
+                .status(ReservationStatus.CANCELLED).build();
         when(reservationRepository.findById(2L)).thenReturn(Optional.of(cancelled));
         assertThatThrownBy(() -> reservationService.confirm(2L))
                 .isInstanceOf(BusinessConflictException.class)
                 .extracting(ex -> ((BusinessConflictException) ex).getErrorCode())
                 .isEqualTo(ErrorCode.RESERVATION_CANNOT_CONFIRM_CANCELLED);
+    }
+
+    @Test
+    @DisplayName("Regression: Blocks update, confirm, and cancel on past reservations and blocks changing clientId")
+    void blocksMutationsOnPastReservationsAndClientOwnerTransfer() {
+        Reservation past = Reservation.builder()
+                .id(30L).clientId(1L).tableId(1L)
+                .date(LocalDate.of(2026, 11, 20))
+                .startTime(LocalTime.of(20, 0)).endTime(LocalTime.of(22, 0))
+                .guestCount(4).status(ReservationStatus.PENDING).build();
+        when(reservationRepository.findById(30L)).thenReturn(Optional.of(past));
+
+        assertThatThrownBy(() -> reservationService.confirm(30L))
+                .isInstanceOf(BusinessConflictException.class)
+                .extracting(ex -> ((BusinessConflictException) ex).getErrorCode())
+                .isEqualTo(ErrorCode.RESERVATION_PAST_IMMUTABLE);
+
+        assertThatThrownBy(() -> reservationService.cancel(30L))
+                .isInstanceOf(BusinessConflictException.class)
+                .extracting(ex -> ((BusinessConflictException) ex).getErrorCode())
+                .isEqualTo(ErrorCode.RESERVATION_PAST_IMMUTABLE);
+
+        assertThatThrownBy(() -> reservationService.update(
+                30L, new ReservationRequest(1L, 1L, LocalDate.of(2026, 12, 5), LocalTime.of(20, 0), 4, null)))
+                .isInstanceOf(BusinessConflictException.class)
+                .extracting(ex -> ((BusinessConflictException) ex).getErrorCode())
+                .isEqualTo(ErrorCode.RESERVATION_PAST_IMMUTABLE);
+
+        Reservation future = Reservation.builder()
+                .id(31L).clientId(1L).tableId(1L)
+                .date(LocalDate.of(2026, 12, 5))
+                .startTime(LocalTime.of(20, 0)).endTime(LocalTime.of(22, 0))
+                .guestCount(4).status(ReservationStatus.PENDING).build();
+        when(reservationRepository.findById(31L)).thenReturn(Optional.of(future));
+
+        assertThatThrownBy(() -> reservationService.update(
+                31L, new ReservationRequest(2L, 1L, LocalDate.of(2026, 12, 5), LocalTime.of(20, 0), 4, null)))
+                .isInstanceOf(BusinessConflictException.class)
+                .extracting(ex -> ((BusinessConflictException) ex).getErrorCode())
+                .isEqualTo(ErrorCode.RESERVATION_CLIENT_IMMUTABLE);
     }
 
     @Test

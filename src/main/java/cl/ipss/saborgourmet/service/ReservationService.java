@@ -1,19 +1,40 @@
 package cl.ipss.saborgourmet.service;
 
 import cl.ipss.saborgourmet.config.ReservationProperties;
-import cl.ipss.saborgourmet.dto.reservation.*;
+import cl.ipss.saborgourmet.dto.reservation.AvailabilityResponse;
+import cl.ipss.saborgourmet.dto.reservation.AvailableTableResponse;
+import cl.ipss.saborgourmet.dto.reservation.ReservationRequest;
+import cl.ipss.saborgourmet.dto.reservation.ReservationResponse;
 import cl.ipss.saborgourmet.exception.ErrorCode;
-import cl.ipss.saborgourmet.exception.business.*;
-import cl.ipss.saborgourmet.model.*;
-import cl.ipss.saborgourmet.repository.*;
-import java.time.*;
+import cl.ipss.saborgourmet.exception.business.BusinessConflictException;
+import cl.ipss.saborgourmet.exception.business.BusinessRuleException;
+import cl.ipss.saborgourmet.exception.business.ResourceNotFoundException;
+import cl.ipss.saborgourmet.model.Client;
+import cl.ipss.saborgourmet.model.ClientStatus;
+import cl.ipss.saborgourmet.model.Reservation;
+import cl.ipss.saborgourmet.model.ReservationStatus;
+import cl.ipss.saborgourmet.model.RestaurantTable;
+import cl.ipss.saborgourmet.repository.ClientRepository;
+import cl.ipss.saborgourmet.repository.ReservationRepository;
+import cl.ipss.saborgourmet.repository.StorageTransactionManager;
+import cl.ipss.saborgourmet.repository.TableRepository;
+import java.time.Clock;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+/**
+ * Servicio de negocio para disponibilidad y ciclo de vida de reservas:
+ * turnos, ocupación mínima del 75%, solapamiento, confirmación y cancelación tardía.
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -44,15 +65,26 @@ public class ReservationService {
         return transactionManager.executeRead(() -> ReservationResponse.from(loadReservation(id)));
     }
 
+    /**
+     * Consulta mesas disponibles leyendo las reservas de la fecha una sola vez (sin N+1).
+     */
     public AvailabilityResponse checkAvailability(LocalDate date, LocalTime startTime, int guestCount) {
         LocalTime endTime = resolveAndValidateEndTime(date, startTime);
 
         return transactionManager.executeRead(() -> {
+            Map<Long, List<Reservation>> activeByTable = reservationRepository.findByDate(date).stream()
+                    .filter(existing -> existing.getStatus() != null && existing.getStatus().isActive())
+                    .collect(Collectors.groupingBy(Reservation::getTableId));
+
             List<AvailableTableResponse> matchingTables = tableRepository.findAll().stream()
                     .filter(RestaurantTable::isActive)
                     .filter(table -> guestCount <= table.getCapacity())
                     .filter(table -> guestCount >= properties.calculateMinimumGuests(table.getCapacity()))
-                    .filter(table -> !overlapsExistingActive(table.getId(), date, startTime, endTime, null))
+                    .filter(table -> !overlapsAny(
+                            activeByTable.getOrDefault(table.getId(), List.of()),
+                            startTime,
+                            endTime,
+                            null))
                     .sorted(Comparator.comparingInt(RestaurantTable::getCapacity)
                             .thenComparingInt(RestaurantTable::getNumber))
                     .map(table -> AvailableTableResponse.from(
@@ -105,15 +137,18 @@ public class ReservationService {
             if (existing.getStatus() == ReservationStatus.CANCELLED) {
                 throw new BusinessConflictException(ErrorCode.RESERVATION_CANCELLED_IMMUTABLE);
             }
+            assertReservationNotStarted(existing);
+            if (!Objects.equals(existing.getClientId(), request.clientId())) {
+                throw new BusinessConflictException(ErrorCode.RESERVATION_CLIENT_IMMUTABLE);
+            }
 
-            assertClientCanBook(request.clientId());
+            assertClientCanBook(existing.getClientId());
             RestaurantTable table = assertTableFitsGuests(request.tableId(), request.guestCount());
 
             if (overlapsExistingActive(table.getId(), request.date(), request.startTime(), endTime, id)) {
                 throw new BusinessConflictException(ErrorCode.RESERVATION_TIME_OVERLAP);
             }
 
-            existing.setClientId(request.clientId());
             existing.setTableId(request.tableId());
             existing.setDate(request.date());
             existing.setStartTime(request.startTime());
@@ -137,6 +172,7 @@ public class ReservationService {
             if (existing.getStatus() == ReservationStatus.CANCELLED) {
                 throw new BusinessConflictException(ErrorCode.RESERVATION_CANNOT_CONFIRM_CANCELLED);
             }
+            assertReservationNotStarted(existing);
 
             existing.setStatus(ReservationStatus.CONFIRMED);
             Reservation saved = reservationRepository.save(existing);
@@ -151,6 +187,7 @@ public class ReservationService {
             if (existing.getStatus() == ReservationStatus.CANCELLED) {
                 throw new BusinessConflictException(ErrorCode.RESERVATION_ALREADY_CANCELLED);
             }
+            assertReservationNotStarted(existing);
 
             existing.setStatus(ReservationStatus.CANCELLED);
             Reservation saved = reservationRepository.save(existing);
@@ -206,9 +243,17 @@ public class ReservationService {
         return table;
     }
 
+    private void assertReservationNotStarted(Reservation reservation) {
+        LocalDateTime now = LocalDateTime.now(clock);
+        LocalDateTime reservationStart = LocalDateTime.of(reservation.getDate(), reservation.getStartTime());
+        if (!reservationStart.isAfter(now)) {
+            throw new BusinessConflictException(ErrorCode.RESERVATION_PAST_IMMUTABLE);
+        }
+    }
+
     /**
-     * Checks half-open interval intersection [startA, endA) against [startB, endB),
-     * allowing back-to-back contiguous slots on the same table.
+     * Evalúa solapamiento en intervalos semiabiertos [startA, endA) vs [startB, endB),
+     * permitiendo turnos contiguos en la misma mesa.
      */
     private boolean overlapsExistingActive(
             Long tableId,
@@ -216,7 +261,19 @@ public class ReservationService {
             LocalTime requestedStart,
             LocalTime requestedEnd,
             Long excludedId) {
-        return reservationRepository.findByTableIdAndDate(tableId, date).stream()
+        return overlapsAny(
+                reservationRepository.findByTableIdAndDate(tableId, date),
+                requestedStart,
+                requestedEnd,
+                excludedId);
+    }
+
+    private boolean overlapsAny(
+            List<Reservation> candidates,
+            LocalTime requestedStart,
+            LocalTime requestedEnd,
+            Long excludedId) {
+        return candidates.stream()
                 .filter(existing -> !Objects.equals(existing.getId(), excludedId))
                 .filter(existing -> existing.getStatus() != null && existing.getStatus().isActive())
                 .anyMatch(existing -> requestedStart.isBefore(existing.getEndTime())

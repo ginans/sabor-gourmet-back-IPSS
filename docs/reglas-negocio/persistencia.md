@@ -12,31 +12,31 @@ Característica: Persistencia confiable en JSON y control de concurrencia local
 
   @SG-PER-01
   Escenario: Inicialización automática del archivo JSON cuando no existe
-    Dado que el archivo "data/datos.json" no existe en el sistema de archivos
-    Cuando la aplicación inicia o realiza la primera operación sobre el repositorio
-    Entonces se crea automáticamente el archivo "data/datos.json"
-    Y su contenido inicial posee las colecciones vacías "clientes", "mesas" y "reservas" con formato JSON válido
+    Dado que el archivo "data/data.json" no existe en el sistema de archivos
+    Cuando la aplicación inicia o realiza la primera operación de escritura sobre el repositorio
+    Entonces se crea automáticamente el archivo "data/data.json"
+    Y su contenido inicial posee las colecciones vacías "clients", "tables" y "reservations" con formato JSON válido
 
   @SG-PER-02
   Escenario: Conservación íntegra de los datos tras reiniciar el servidor
-    Dado que existen clientes, mesas y reservas (incluyendo canceladas) persistidas en "data/datos.json"
+    Dado que existen clients, tables y reservations (incluyendo CANCELLED) persistidas en "data/data.json"
     Cuando el servidor se detiene y vuelve a iniciarse
     Entonces todas las consultas GET retornan exactamente los mismos registros e IDs previos al reinicio
-    Y los registros en "data/datos.json" mantienen referencias por ID ("clienteId", "mesaId") sin objetos duplicados
+    Y los registros en "data/data.json" mantienen referencias por ID ("clientId", "tableId") sin objetos duplicados
 
   @SG-PER-03
   Escenario: Protección de datos existentes ante errores de escritura en disco
-    Dado que "data/datos.json" contiene información válida previa
+    Dado que "data/data.json" contiene información válida previa
     Cuando ocurre un error de E/S durante la escritura del archivo temporal o su reemplazo atómico
-    Entonces el archivo "data/datos.json" conserva íntegros los datos previos sin borrarse ni corromperse
-    Y la API responde con estado HTTP 500, categoría "INFRASTRUCTURE" y un mensaje seguro sin exponer trazas internas
+    Entonces el archivo "data/data.json" conserva íntegros los datos previos sin borrarse ni corromperse
+    Y la API responde con estado HTTP 500, categoría "INFRASTRUCTURE" y código "INFRA_IN001" sin exponer trazas internas
 
   @SG-PER-04
   Escenario: Exclusión mutua ante dos reservas simultáneas sobre la misma mesa y turno
-    Dado que existe un cliente activo y la mesa 1 (capacidad 4) está disponible el "2026-12-01" a las "20:00"
-    Cuando dos hilos ejecutan simultáneamente POST /api/v1/reservas para la mesa 1 el "2026-12-01" a las "20:00"
-    Entonces el mecanismo ReentrantReadWriteLock serializa ambas escrituras
+    Dado que existen clientes ACTIVE y la table 1 (capacity 4) está disponible el "2026-12-20" a las "20:00"
+    Cuando dos hilos ejecutan simultáneamente POST /api/v1/reservations para la table 1 el "2026-12-20" a las "20:00"
+    Entonces el mecanismo ReentrantReadWriteLock serializa ambas escrituras en unidad de trabajo atómica
     Y exactamente una solicitud responde HTTP 201 Created
-    Y la otra solicitud responde HTTP 409 Conflict indicando solapamiento de horario
-    Y en "data/datos.json" queda registrada únicamente una reserva activa para ese turno
+    Y la otra solicitud responde HTTP 409 Conflict con código "RESERVATIONS_BS006"
+    Y en "data/data.json" queda registrada únicamente una reserva activa para ese turno
 ```

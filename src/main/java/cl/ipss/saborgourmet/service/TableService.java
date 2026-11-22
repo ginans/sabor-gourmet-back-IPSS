@@ -1,5 +1,6 @@
 package cl.ipss.saborgourmet.service;
 
+import cl.ipss.saborgourmet.config.ReservationProperties;
 import cl.ipss.saborgourmet.dto.table.TableRequest;
 import cl.ipss.saborgourmet.dto.table.TableResponse;
 import cl.ipss.saborgourmet.exception.ErrorCode;
@@ -10,6 +11,7 @@ import cl.ipss.saborgourmet.model.RestaurantTable;
 import cl.ipss.saborgourmet.repository.ReservationRepository;
 import cl.ipss.saborgourmet.repository.StorageTransactionManager;
 import cl.ipss.saborgourmet.repository.TableRepository;
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
@@ -17,6 +19,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+/**
+ * Servicio de negocio para administrar la configuración de mesas del restaurante,
+ * resguardando unicidad de número, ocupación mínima y reservas vigentes.
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -25,7 +31,12 @@ public class TableService {
     private final TableRepository tableRepository;
     private final ReservationRepository reservationRepository;
     private final StorageTransactionManager transactionManager;
+    private final ReservationProperties reservationProperties;
+    private final Clock clock;
 
+    /**
+     * Lista todas las mesas configuradas o solo las habilitadas operativamente.
+     */
     public List<TableResponse> findAll(boolean onlyActive) {
         return transactionManager.executeRead(() -> tableRepository.findAll().stream()
                 .filter(table -> !onlyActive || table.isActive())
@@ -33,10 +44,16 @@ public class TableService {
                 .toList());
     }
 
+    /**
+     * Consulta una mesa por su identificador único o lanza 404 si no existe.
+     */
     public TableResponse findById(Long id) {
         return transactionManager.executeRead(() -> TableResponse.from(getTableOrThrow(id)));
     }
 
+    /**
+     * Crea una mesa validando que su número no esté duplicado.
+     */
     public TableResponse create(TableRequest request) {
         return transactionManager.executeWrite(() -> {
             tableRepository.findByNumber(request.number())
@@ -58,6 +75,10 @@ public class TableService {
         });
     }
 
+    /**
+     * Actualiza número, capacidad, ubicación y estado operativo de una mesa,
+     * impidiendo cambios que invaliden reservas vigentes (desactivación, sobrecupo o subocupación).
+     */
     public TableResponse update(Long id, TableRequest request) {
         return transactionManager.executeWrite(() -> {
             RestaurantTable existing = getTableOrThrow(id);
@@ -81,6 +102,13 @@ public class TableService {
                 if (capacityConflict) {
                     throw new BusinessConflictException(ErrorCode.TABLE_CAPACITY_REDUCTION_CONFLICT);
                 }
+            } else if (request.capacity() > existing.getCapacity()) {
+                int newMinGuests = reservationProperties.calculateMinimumGuests(request.capacity());
+                boolean minOccupancyConflict = activeUpcoming.stream()
+                        .anyMatch(reservation -> reservation.getGuestCount() < newMinGuests);
+                if (minOccupancyConflict) {
+                    throw new BusinessConflictException(ErrorCode.TABLE_CAPACITY_MIN_OCCUPANCY_CONFLICT);
+                }
             }
 
             existing.setNumber(request.number());
@@ -95,6 +123,9 @@ public class TableService {
         });
     }
 
+    /**
+     * Elimina una mesa solo si no posee ninguna reserva asociada (vigente o histórica).
+     */
     public void delete(Long id) {
         transactionManager.executeWrite(() -> {
             getTableOrThrow(id);
@@ -113,7 +144,7 @@ public class TableService {
     }
 
     private List<Reservation> findActiveUpcomingReservations(Long tableId) {
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(clock);
         return reservationRepository.findByTableId(tableId).stream()
                 .filter(reservation -> reservation.getStatus() != null && reservation.getStatus().isActive())
                 .filter(reservation -> LocalDateTime.of(reservation.getDate(), reservation.getEndTime()).isAfter(now))
