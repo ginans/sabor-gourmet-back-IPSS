@@ -221,7 +221,7 @@ class TableServiceTest {
         RestaurantTable existing = RestaurantTable.builder().id(1L).number(1).capacity(4).active(true).build();
         Reservation historical = Reservation.builder()
                 .id(10L).clientId(1L).tableId(1L)
-                .date(LocalDate.now().minusDays(2))
+                .date(LocalDate.of(2026, 11, 28))
                 .startTime(LocalTime.of(20, 0)).endTime(LocalTime.of(22, 0))
                 .guestCount(3).status(ReservationStatus.CANCELLED).build();
 

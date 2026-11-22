@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Persistence contract for {@link Client} entities, decoupled from the underlying storage engine.
+ * Contrato de persistencia para clientes, desacoplado del motor de almacenamiento subyacente.
  */
 public interface ClientRepository {
 

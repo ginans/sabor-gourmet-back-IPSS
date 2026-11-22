@@ -40,7 +40,7 @@ El manejo centralizado de excepciones ([`GlobalExceptionHandler`](src/main/java/
 
 ## Ejecución Rápida
 
-### 1. Ejecutar pruebas automatizadas (50 tests: unitarios, integración, regresión y concurrencia)
+### 1. Ejecutar pruebas automatizadas (51 tests: unitarios, integración, regresión y concurrencia)
 ```bash
 ./mvnw clean test
 ```

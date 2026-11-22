@@ -44,8 +44,8 @@ public class ReservationController {
     public ResponseEntity<List<ReservationResponse>> findAll(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
             @RequestParam(required = false) ReservationStatus status,
-            @RequestParam(required = false) Long clientId,
-            @RequestParam(required = false) Long tableId) {
+            @RequestParam(required = false) @Positive(message = "Client ID must be positive") Long clientId,
+            @RequestParam(required = false) @Positive(message = "Table ID must be positive") Long tableId) {
         return ResponseEntity.ok(reservationService.findAll(date, status, clientId, tableId));
     }
 

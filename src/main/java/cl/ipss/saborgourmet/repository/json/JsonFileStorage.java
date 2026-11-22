@@ -63,17 +63,8 @@ public class JsonFileStorage implements StorageTransactionManager {
 
     @Override
     public <T> T executeRead(Supplier<T> action) {
-        if (writeSession.get() != null) {
+        if (writeSession.get() != null || readSession.get() != null) {
             return action.get();
-        }
-        ReadSession current = readSession.get();
-        if (current != null) {
-            current.depth++;
-            try {
-                return action.get();
-            } finally {
-                current.depth--;
-            }
         }
 
         lock.readLock().lock();
@@ -89,14 +80,11 @@ public class JsonFileStorage implements StorageTransactionManager {
 
     @Override
     public <T> T executeWrite(Supplier<T> action) {
-        WriteSession current = writeSession.get();
-        if (current != null) {
-            current.depth++;
-            try {
-                return action.get();
-            } finally {
-                current.depth--;
-            }
+        if (readSession.get() != null) {
+            throw new IllegalStateException("Cannot upgrade an active read transaction to a write transaction.");
+        }
+        if (writeSession.get() != null) {
+            return action.get();
         }
 
         lock.writeLock().lock();
@@ -238,7 +226,6 @@ public class JsonFileStorage implements StorageTransactionManager {
 
     private static final class ReadSession {
         private final RestaurantData data;
-        private int depth = 1;
 
         private ReadSession(RestaurantData data) {
             this.data = data;
@@ -248,7 +235,6 @@ public class JsonFileStorage implements StorageTransactionManager {
     private static final class WriteSession {
         private final RestaurantData data;
         private boolean dirty;
-        private int depth = 1;
 
         private WriteSession(RestaurantData data) {
             this.data = data;

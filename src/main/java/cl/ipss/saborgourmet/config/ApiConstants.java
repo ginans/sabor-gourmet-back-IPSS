@@ -17,7 +17,7 @@ public final class ApiConstants {
     public static final String ANONYMIZED_CLIENT_NAME = "Deleted Client";
     public static final String TEMP_FILE_SUFFIX = ".tmp";
 
-    public static final String PHONE_REGEX = "^(?=(?:.*\\d){7,15})\\+?[0-9\\s-]{7,20}$";
+    public static final String PHONE_REGEX = "^(?=(?:[^\\d]*\\d){7,15}[^\\d]*$)\\+?[0-9\\s-]{7,20}$";
     public static final String PHONE_WHITESPACE_DASH_REGEX = "[\\s-]+";
     public static final String MIN_TWO_NON_WHITESPACE_REGEX = "^\\s*\\S.*\\S\\s*$";
 

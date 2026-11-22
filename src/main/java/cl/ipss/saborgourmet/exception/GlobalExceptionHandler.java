@@ -12,6 +12,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
@@ -116,11 +117,14 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(HttpMediaTypeNotAcceptableException.class)
-    public ResponseEntity<ApiErrorResponse> handleNotAcceptable(
+    public ResponseEntity<String> handleNotAcceptable(
             HttpMediaTypeNotAcceptableException ex,
             HttpServletRequest request) {
         ErrorCode errorCode = ErrorCode.NOT_ACCEPTABLE;
-        return buildResponse(errorCode, errorCode.formatMessage(), request.getRequestURI(), null);
+        log.debug("Validation error [{}] at {}: {}", errorCode.getCode(), request.getRequestURI(), errorCode.formatMessage());
+        return ResponseEntity.status(errorCode.getHttpStatus())
+                .contentType(MediaType.TEXT_PLAIN)
+                .body(errorCode.formatMessage());
     }
 
     @ExceptionHandler(DomainException.class)

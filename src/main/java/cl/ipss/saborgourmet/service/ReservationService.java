@@ -47,6 +47,9 @@ public class ReservationService {
     private final ReservationProperties properties;
     private final Clock clock;
 
+    /**
+     * Lista reservas aplicando filtros opcionales acumulativos por fecha, estado, cliente y mesa.
+     */
     public List<ReservationResponse> findAll(
             LocalDate date,
             ReservationStatus status,
@@ -61,6 +64,9 @@ public class ReservationService {
                 .toList());
     }
 
+    /**
+     * Obtiene una reserva por su identificador único o lanza 404 si no existe.
+     */
     public ReservationResponse findById(Long id) {
         return transactionManager.executeRead(() -> ReservationResponse.from(loadReservation(id)));
     }
@@ -97,8 +103,8 @@ public class ReservationService {
     }
 
     /**
-     * Runs eligibility checks, slot overlap validation, and persistence inside the write lock
-     * so concurrent requests for the same table and slot resolve without double booking.
+     * Crea una reserva en estado {@code PENDING} dentro del {@code writeLock} exclusivo
+     * para evitar reservas duplicadas ante peticiones concurrentes sobre la misma mesa y turno.
      */
     public ReservationResponse create(ReservationRequest request) {
         LocalTime endTime = resolveAndValidateEndTime(request.date(), request.startTime());
@@ -129,6 +135,10 @@ public class ReservationService {
         });
     }
 
+    /**
+     * Modifica una reserva vigente futura sin permitir cambiar su titular ({@code clientId})
+     * ni alterar reservas canceladas o ya iniciadas.
+     */
     public ReservationResponse update(Long id, ReservationRequest request) {
         LocalTime endTime = resolveAndValidateEndTime(request.date(), request.startTime());
 
@@ -163,6 +173,9 @@ public class ReservationService {
         });
     }
 
+    /**
+     * Confirma una reserva pendiente futura (puede ser invocado por cliente o personal).
+     */
     public ReservationResponse confirm(Long id) {
         return transactionManager.executeWrite(() -> {
             Reservation existing = loadReservation(id);
@@ -181,6 +194,10 @@ public class ReservationService {
         });
     }
 
+    /**
+     * Cancela una reserva futura, libera la mesa y registra un strike por cancelación tardía
+     * (&lt; 24h) dentro de la misma unidad de trabajo atómica.
+     */
     public ReservationResponse cancel(Long id) {
         return transactionManager.executeWrite(() -> {
             Reservation existing = loadReservation(id);

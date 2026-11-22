@@ -3,9 +3,8 @@ package cl.ipss.saborgourmet.repository;
 import java.util.function.Supplier;
 
 /**
- * Abstraction for coordinating read and write critical sections across repositories.
- * Backed by a {@code ReentrantReadWriteLock} in JSON storage mode and replaceable
- * by database transaction management in future persistence backends.
+ * Abstracción para coordinar unidades de trabajo de lectura y escritura entre repositorios.
+ * En modo JSON utiliza {@code ReentrantReadWriteLock} y en SQL puede delegarse al gestor transaccional de Spring.
  */
 public interface StorageTransactionManager {
 

@@ -2,6 +2,9 @@ package cl.ipss.saborgourmet.dto.table;
 
 import cl.ipss.saborgourmet.model.RestaurantTable;
 
+/**
+ * Representación de lectura de una mesa del restaurante.
+ */
 public record TableResponse(
         Long id,
         Integer number,

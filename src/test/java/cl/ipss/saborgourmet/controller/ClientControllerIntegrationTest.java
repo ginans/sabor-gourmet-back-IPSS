@@ -96,6 +96,22 @@ class ClientControllerIntegrationTest {
                 .andExpect(jsonPath("$.category").value("VALIDATION"))
                 .andExpect(jsonPath("$.code").value(ErrorCode.UNSUPPORTED_MEDIA_TYPE.getCode()));
 
+        mockMvc.perform(post(ApiConstants.CLIENTS_PATH)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "Valid Name",
+                                  "email": "valid2@correo.cl",
+                                  "phone": "12345678901234567890"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.phone").exists());
+
+        mockMvc.perform(get(ApiConstants.CLIENTS_PATH)
+                        .accept(MediaType.TEXT_PLAIN))
+                .andExpect(status().isNotAcceptable());
+
         mockMvc.perform(get(ApiConstants.CLIENTS_PATH + "/-1"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.fieldErrors.id").exists());

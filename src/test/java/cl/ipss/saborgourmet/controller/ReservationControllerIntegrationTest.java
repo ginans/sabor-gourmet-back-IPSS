@@ -224,6 +224,13 @@ class ReservationControllerIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.fieldErrors.clientId").exists())
                 .andExpect(jsonPath("$.fieldErrors.tableId").exists());
+
+        mockMvc.perform(get(ApiConstants.RESERVATIONS_PATH)
+                        .param("clientId", "-1")
+                        .param("tableId", "-5"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.clientId").exists())
+                .andExpect(jsonPath("$.fieldErrors.tableId").exists());
     }
 
     private Long createClient(String name, String email, String phone) throws Exception {

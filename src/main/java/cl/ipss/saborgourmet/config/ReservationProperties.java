@@ -8,14 +8,14 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 
 /**
- * Externalized business rule parameters for restaurant reservations.
+ * Parámetros de negocio externalizados para la gestión de turnos y reservas.
  *
- * @param turnDurationMinutes     standard duration of each reservation slot in minutes
- * @param openingTime             daily opening time of the restaurant
- * @param closingTime             daily closing time (reservation end time must not exceed this value)
- * @param minOccupancyPercentage  minimum percentage of table capacity required (rounded down, minimum 1)
- * @param cancellationNoticeHours minimum advance notice in hours to cancel without a late penalty
- * @param maxLateCancellations    late-cancellation threshold that triggers an automatic client ban
+ * @param turnDurationMinutes     duración estándar de cada turno en minutos
+ * @param openingTime             hora diaria de apertura del restaurante
+ * @param closingTime             hora diaria de cierre (el fin del turno no debe superarla)
+ * @param minOccupancyPercentage  porcentaje mínimo de ocupación por mesa (redondeado hacia abajo, mínimo 1)
+ * @param cancellationNoticeHours horas mínimas de anticipación para cancelar sin penalización
+ * @param maxLateCancellations    umbral de cancelaciones tardías que activa el baneo automático
  */
 @Validated
 @ConfigurationProperties(prefix = "app.reservations")
@@ -41,11 +41,8 @@ public record ReservationProperties(
 ) {
 
     /**
-     * Calculates the minimum number of guests allowed for a table capacity
-     * applying the configured occupancy percentage rounded down, with a lower bound of 1.
-     *
-     * @param tableCapacity total number of seats of the table
-     * @return minimum number of guests required to reserve the table
+     * Calcula la cantidad mínima de personas permitida para una mesa aplicando el
+     * porcentaje mínimo de ocupación redondeado hacia abajo, con cota inferior de 1.
      */
     public int calculateMinimumGuests(int tableCapacity) {
         int minimum = (int) Math.floor(tableCapacity * (minOccupancyPercentage / 100.0));

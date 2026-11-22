@@ -216,4 +216,13 @@ class JsonFileStorageTest {
         JsonFileStorage strictStorage = new JsonFileStorage(new StorageProperties(storageFile.toString()), strictHttpMapper);
         assertThat(new JsonClientRepository(strictStorage).findAll()).isEmpty();
     }
+
+    @Test
+    @DisplayName("Regression: Rejects write transaction nested inside an active read transaction instead of deadlocking")
+    void rejectsNestedWriteInsideActiveReadTransaction() {
+        storage.initialize();
+        assertThatThrownBy(() -> storage.executeRead(() ->
+                storage.executeWrite(() -> clientRepository.findAll())))
+                .isInstanceOf(IllegalStateException.class);
+    }
 }

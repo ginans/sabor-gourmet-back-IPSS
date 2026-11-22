@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "a7b4c2d1-9e8f-4a1b-8c3d-5e6f7a8b9c0d",
     "name": "Sabor Gourmet — Restaurant Reservation API (Eva 2)",
-    "description": "Reproducible and self-contained Postman Collection v2.1 covering full CRUD for Clients and Tables, Availability (75% floor), Reservations lifecycle, dynamic ID capture, pm.test assertions, error cases (400/404/409/415), and post-restart persistence check.",
+    "description": "Self-contained and infinitely reproducible Postman Collection v2.1 covering full CRUD for Clients and Tables (including physical and anonymized deletes), Availability (75% floor), Reservations lifecycle, dynamic ID capture, pm.test assertions, error cases (400/404/409/415/406), and post-restart persistence check.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -10,8 +10,11 @@
     { "key": "reservationDate", "value": "2026-12-22" },
     { "key": "createdClientId", "value": "" },
     { "key": "createdClientEmail", "value": "" },
+    { "key": "tempClientId", "value": "" },
     { "key": "createdTableId", "value": "" },
     { "key": "createdTableNumber", "value": "" },
+    { "key": "tempTableId", "value": "" },
+    { "key": "tempTableNumber", "value": "" },
     { "key": "createdReservationId", "value": "" }
   ],
   "item": [
@@ -32,10 +35,7 @@
               }
             }
           ],
-          "request": {
-            "method": "GET",
-            "url": "{{baseUrl}}/api/v1/clients"
-          }
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/clients" }
         },
         {
           "name": "Create Client (201 Created — No PII Echo)",
@@ -45,8 +45,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "const uniqueEmail = `camila.${Date.now()}@correo.cl`;",
-                  "pm.collectionVariables.set('createdClientEmail', uniqueEmail);"
+                  "pm.collectionVariables.set('createdClientEmail', `camila.${Date.now()}@correo.cl`);"
                 ]
               }
             },
@@ -76,6 +75,52 @@
             },
             "url": "{{baseUrl}}/api/v1/clients"
           }
+        },
+        {
+          "name": "Create Temporary Client for Physical Delete (201 Created)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('tempClientEmail', `temp.${Date.now()}@correo.cl`);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201 Created', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('tempClientId', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Temp User\",\n  \"email\": \"{{tempClientEmail}}\",\n  \"phone\": \"+56911223344\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/clients"
+          }
+        },
+        {
+          "name": "Physical Delete Client Without Reservations (204 No Content)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status is 204 No Content', () => pm.response.to.have.status(204));"]
+              }
+            }
+          ],
+          "request": { "method": "DELETE", "url": "{{baseUrl}}/api/v1/clients/{{tempClientId}}" }
         },
         {
           "name": "Create Client — Validation Error (400 Bad Request)",
@@ -160,10 +205,7 @@
               }
             }
           ],
-          "request": {
-            "method": "GET",
-            "url": "{{baseUrl}}/api/v1/clients/{{createdClientId}}"
-          }
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/clients/{{createdClientId}}" }
         },
         {
           "name": "Get Non-Existent Client (404 Not Found)",
@@ -179,10 +221,7 @@
               }
             }
           ],
-          "request": {
-            "method": "GET",
-            "url": "{{baseUrl}}/api/v1/clients/999999"
-          }
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/clients/999999" }
         },
         {
           "name": "Update Created Client (200 OK — updatedFields only)",
@@ -193,8 +232,8 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Status is 200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
                   "pm.test('Reports updatedFields without values', () => {",
-                  "  const body = pm.response.json();",
                   "  pm.expect(body.updatedFields).to.include('name');",
                   "  pm.expect(body.updatedFields).to.include('phone');",
                   "});"
@@ -219,9 +258,7 @@
               "listen": "test",
               "script": {
                 "type": "text/javascript",
-                "exec": [
-                  "pm.test('Status is 200 OK', () => pm.response.to.have.status(200));"
-                ]
+                "exec": ["pm.test('Status is 200 OK', () => pm.response.to.have.status(200));"]
               }
             }
           ],
@@ -239,9 +276,7 @@
               "listen": "test",
               "script": {
                 "type": "text/javascript",
-                "exec": [
-                  "pm.test('Status is 200 OK', () => pm.response.to.have.status(200));"
-                ]
+                "exec": ["pm.test('Status is 200 OK', () => pm.response.to.have.status(200));"]
               }
             }
           ],
@@ -268,21 +303,19 @@
               }
             }
           ],
-          "request": {
-            "method": "GET",
-            "url": "{{baseUrl}}/api/v1/tables"
-          }
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/tables" }
         },
         {
-          "name": "Create Table (201 Created)",
+          "name": "Create Table cap=4 (201 Created)",
           "event": [
             {
               "listen": "prerequest",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "const uniqueNumber = 100 + Math.floor(Math.random() * 899);",
-                  "pm.collectionVariables.set('createdTableNumber', uniqueNumber);"
+                  "const base = 1000 + (Date.now() % 80000);",
+                  "pm.collectionVariables.set('createdTableNumber', base);",
+                  "pm.collectionVariables.set('tempTableNumber', base + 1);"
                 ]
               }
             },
@@ -292,8 +325,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Status is 201 Created', () => pm.response.to.have.status(201));",
-                  "const body = pm.response.json();",
-                  "pm.collectionVariables.set('createdTableId', body.id);"
+                  "pm.collectionVariables.set('createdTableId', pm.response.json().id);"
                 ]
               }
             }
@@ -309,6 +341,30 @@
           }
         },
         {
+          "name": "Create Temporary Table cap=6 for Min-Occupancy & Physical Delete (201 Created)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201 Created', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('tempTableId', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"number\": {{tempTableNumber}},\n  \"capacity\": 6,\n  \"location\": \"Temp Patio\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/tables"
+          }
+        },
+        {
           "name": "Get Created Table by ID (200 OK)",
           "event": [
             {
@@ -319,10 +375,7 @@
               }
             }
           ],
-          "request": {
-            "method": "GET",
-            "url": "{{baseUrl}}/api/v1/tables/{{createdTableId}}"
-          }
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/tables/{{createdTableId}}" }
         },
         {
           "name": "Get Non-Existent Table (404 Not Found)",
@@ -338,10 +391,7 @@
               }
             }
           ],
-          "request": {
-            "method": "GET",
-            "url": "{{baseUrl}}/api/v1/tables/999999"
-          }
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/tables/999999" }
         },
         {
           "name": "Create Table — Duplicate Number (409 Conflict)",
@@ -400,7 +450,11 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Status is 200 OK', () => pm.response.to.have.status(200));",
-                  "pm.test('At least one table available', () => pm.expect(pm.response.json().availableCount).to.be.above(0));"
+                  "const ids = pm.response.json().availableTables.map(t => t.id);",
+                  "pm.test('Includes cap=4 table and excludes cap=6 table for 3 guests', () => {",
+                  "  pm.expect(ids).to.include(Number(pm.collectionVariables.get('createdTableId')));",
+                  "  pm.expect(ids).to.not.include(Number(pm.collectionVariables.get('tempTableId')));",
+                  "});"
                 ]
               }
             }
@@ -471,10 +525,7 @@
               }
             }
           ],
-          "request": {
-            "method": "GET",
-            "url": "{{baseUrl}}/api/v1/reservations/{{createdReservationId}}"
-          }
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/reservations/{{createdReservationId}}" }
         },
         {
           "name": "Get Non-Existent Reservation (404 Not Found)",
@@ -490,10 +541,7 @@
               }
             }
           ],
-          "request": {
-            "method": "GET",
-            "url": "{{baseUrl}}/api/v1/reservations/999999"
-          }
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/reservations/999999" }
         },
         {
           "name": "List Reservations Filtered by Date and Status (200 OK)",
@@ -509,10 +557,7 @@
               }
             }
           ],
-          "request": {
-            "method": "GET",
-            "url": "{{baseUrl}}/api/v1/reservations?date={{reservationDate}}&status=PENDING"
-          }
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/reservations?date={{reservationDate}}&status=PENDING" }
         },
         {
           "name": "Create Reservation — Overlapping Slot (409 Conflict)",
@@ -533,13 +578,13 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"clientId\": 1,\n  \"tableId\": {{createdTableId}},\n  \"date\": \"{{reservationDate}}\",\n  \"startTime\": \"20:30\",\n  \"guestCount\": 4\n}"
+              "raw": "{\n  \"clientId\": {{createdClientId}},\n  \"tableId\": {{createdTableId}},\n  \"date\": \"{{reservationDate}}\",\n  \"startTime\": \"20:30\",\n  \"guestCount\": 4\n}"
             },
             "url": "{{baseUrl}}/api/v1/reservations"
           }
         },
         {
-          "name": "Create Reservation — Below 75% Min Occupancy (409 Conflict)",
+          "name": "Create Reservation — Below 75% Min Occupancy on cap=6 Table (409 Conflict)",
           "event": [
             {
               "listen": "test",
@@ -557,7 +602,44 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"clientId\": 1,\n  \"tableId\": 3,\n  \"date\": \"{{reservationDate}}\",\n  \"startTime\": \"19:00\",\n  \"guestCount\": 3\n}"
+              "raw": "{\n  \"clientId\": {{createdClientId}},\n  \"tableId\": {{tempTableId}},\n  \"date\": \"{{reservationDate}}\",\n  \"startTime\": \"19:00\",\n  \"guestCount\": 3\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/reservations"
+          }
+        },
+        {
+          "name": "Physical Delete Unused Temp Table cap=6 (204 No Content)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status is 204 No Content', () => pm.response.to.have.status(204));"]
+              }
+            }
+          ],
+          "request": { "method": "DELETE", "url": "{{baseUrl}}/api/v1/tables/{{tempTableId}}" }
+        },
+        {
+          "name": "Create Reservation — Past Date (400 Bad Request)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400 Bad Request', () => pm.response.to.have.status(400));",
+                  "pm.test('Returns RESERVATIONS_BS002', () => pm.expect(pm.response.json().code).to.eql('RESERVATIONS_BS002'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientId\": {{createdClientId}},\n  \"tableId\": {{createdTableId}},\n  \"date\": \"2020-01-01\",\n  \"startTime\": \"20:00\",\n  \"guestCount\": 3\n}"
             },
             "url": "{{baseUrl}}/api/v1/reservations"
           }
@@ -581,7 +663,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"clientId\": 1,\n  \"tableId\": {{createdTableId}},\n  \"date\": \"{{reservationDate}}\",\n  \"startTime\": \"22:00\",\n  \"guestCount\": 3\n}"
+              "raw": "{\n  \"clientId\": {{createdClientId}},\n  \"tableId\": {{createdTableId}},\n  \"date\": \"{{reservationDate}}\",\n  \"startTime\": \"22:00\",\n  \"guestCount\": 3\n}"
             },
             "url": "{{baseUrl}}/api/v1/reservations"
           }
@@ -600,10 +682,7 @@
               }
             }
           ],
-          "request": {
-            "method": "DELETE",
-            "url": "{{baseUrl}}/api/v1/tables/{{createdTableId}}"
-          }
+          "request": { "method": "DELETE", "url": "{{baseUrl}}/api/v1/tables/{{createdTableId}}" }
         },
         {
           "name": "Delete Client with Active Reservation — Blocked (409 Conflict)",
@@ -619,10 +698,7 @@
               }
             }
           ],
-          "request": {
-            "method": "DELETE",
-            "url": "{{baseUrl}}/api/v1/clients/{{createdClientId}}"
-          }
+          "request": { "method": "DELETE", "url": "{{baseUrl}}/api/v1/clients/{{createdClientId}}" }
         },
         {
           "name": "Modify Active Reservation (200 OK)",
@@ -662,10 +738,7 @@
               }
             }
           ],
-          "request": {
-            "method": "PATCH",
-            "url": "{{baseUrl}}/api/v1/reservations/{{createdReservationId}}/confirm"
-          }
+          "request": { "method": "PATCH", "url": "{{baseUrl}}/api/v1/reservations/{{createdReservationId}}/confirm" }
         },
         {
           "name": "Cancel Reservation & Release Table (200 OK — CANCELLED)",
@@ -681,10 +754,23 @@
               }
             }
           ],
-          "request": {
-            "method": "PATCH",
-            "url": "{{baseUrl}}/api/v1/reservations/{{createdReservationId}}/cancel"
-          }
+          "request": { "method": "PATCH", "url": "{{baseUrl}}/api/v1/reservations/{{createdReservationId}}/cancel" }
+        },
+        {
+          "name": "Cancel Reservation Again — Double Cancel Blocked (409 Conflict)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 409 Conflict', () => pm.response.to.have.status(409));",
+                  "pm.test('Returns RESERVATIONS_BS010', () => pm.expect(pm.response.json().code).to.eql('RESERVATIONS_BS010'));"
+                ]
+              }
+            }
+          ],
+          "request": { "method": "PATCH", "url": "{{baseUrl}}/api/v1/reservations/{{createdReservationId}}/cancel" }
         },
         {
           "name": "Verify Table Released After Cancellation (200 OK)",
@@ -717,10 +803,7 @@
               }
             }
           ],
-          "request": {
-            "method": "DELETE",
-            "url": "{{baseUrl}}/api/v1/clients/{{createdClientId}}"
-          }
+          "request": { "method": "DELETE", "url": "{{baseUrl}}/api/v1/clients/{{createdClientId}}" }
         }
       ]
     },
@@ -738,10 +821,7 @@
               }
             }
           ],
-          "request": {
-            "method": "GET",
-            "url": "{{baseUrl}}/v3/api-docs"
-          }
+          "request": { "method": "GET", "url": "{{baseUrl}}/v3/api-docs" }
         },
         {
           "name": "Post-Restart Persistence Verification — Reservations (200 OK)",
@@ -754,10 +834,7 @@
               }
             }
           ],
-          "request": {
-            "method": "GET",
-            "url": "{{baseUrl}}/api/v1/reservations"
-          }
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/reservations" }
         }
       ]
     }
