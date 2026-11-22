@@ -19,11 +19,6 @@ public final class ApiConstants {
     public static final String PHONE_REGEX = "^\\+?[0-9\\s-]{7,20}$";
     public static final String PHONE_WHITESPACE_DASH_REGEX = "[\\s-]+";
 
-    public static final String FIELD_NAME = "name";
-    public static final String FIELD_EMAIL = "email";
-    public static final String FIELD_PHONE = "phone";
-    public static final String FIELD_STATUS = "status";
-
     public static final String MSG_CLIENT_CREATED = "Client registered successfully.";
     public static final String MSG_CLIENT_UPDATED = "Client updated successfully.";
     public static final String MSG_CLIENT_STATUS_UPDATED = "Client status updated successfully.";

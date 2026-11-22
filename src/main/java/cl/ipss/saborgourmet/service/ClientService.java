@@ -86,15 +86,15 @@ public class ClientService {
             List<String> updatedFields = new ArrayList<>();
             if (!Objects.equals(existing.getName(), normalizedName)) {
                 existing.setName(normalizedName);
-                updatedFields.add(ApiConstants.FIELD_NAME);
+                updatedFields.add(Client.Fields.name);
             }
             if (!Objects.equals(existing.getEmail(), normalizedEmail)) {
                 existing.setEmail(normalizedEmail);
-                updatedFields.add(ApiConstants.FIELD_EMAIL);
+                updatedFields.add(Client.Fields.email);
             }
             if (!Objects.equals(existing.getPhone(), normalizedPhone)) {
                 existing.setPhone(normalizedPhone);
-                updatedFields.add(ApiConstants.FIELD_PHONE);
+                updatedFields.add(Client.Fields.phone);
             }
 
             Client updated = clientRepository.save(existing);
@@ -115,7 +115,7 @@ public class ClientService {
             List<String> updatedFields = new ArrayList<>();
             if (existing.getStatus() != request.status()) {
                 existing.setStatus(request.status());
-                updatedFields.add(ApiConstants.FIELD_STATUS);
+                updatedFields.add(Client.Fields.status);
             }
 
             Client updated = clientRepository.save(existing);

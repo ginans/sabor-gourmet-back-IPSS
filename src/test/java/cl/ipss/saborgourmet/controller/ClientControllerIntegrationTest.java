@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import cl.ipss.saborgourmet.config.ApiConstants;
 import cl.ipss.saborgourmet.exception.ErrorCode;
+import cl.ipss.saborgourmet.model.Client;
 import cl.ipss.saborgourmet.model.ClientStatus;
 import cl.ipss.saborgourmet.model.Reservation;
 import cl.ipss.saborgourmet.model.ReservationStatus;
@@ -134,8 +135,8 @@ class ClientControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(clientWithoutHistoryId))
                 .andExpect(jsonPath("$.message").value(ApiConstants.MSG_CLIENT_UPDATED))
-                .andExpect(jsonPath("$.updatedFields[0]").value(ApiConstants.FIELD_NAME))
-                .andExpect(jsonPath("$.updatedFields[1]").value(ApiConstants.FIELD_PHONE))
+                .andExpect(jsonPath("$.updatedFields[0]").value(Client.Fields.name))
+                .andExpect(jsonPath("$.updatedFields[1]").value(Client.Fields.phone))
                 .andExpect(jsonPath("$.email").doesNotExist())
                 .andExpect(jsonPath("$.phone").doesNotExist());
 
@@ -147,7 +148,7 @@ class ClientControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(clientWithoutHistoryId))
                 .andExpect(jsonPath("$.message").value(ApiConstants.MSG_CLIENT_STATUS_UPDATED))
-                .andExpect(jsonPath("$.updatedFields[0]").value(ApiConstants.FIELD_STATUS));
+                .andExpect(jsonPath("$.updatedFields[0]").value(Client.Fields.status));
 
         mockMvc.perform(delete(ApiConstants.CLIENTS_PATH + "/" + clientWithoutHistoryId))
                 .andExpect(status().isNoContent());

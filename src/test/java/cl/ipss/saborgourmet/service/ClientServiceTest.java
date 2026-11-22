@@ -159,7 +159,7 @@ class ClientServiceTest {
 
         assertThat(response.id()).isEqualTo(1L);
         assertThat(response.message()).isEqualTo(ApiConstants.MSG_CLIENT_UPDATED);
-        assertThat(response.updatedFields()).containsExactly(ApiConstants.FIELD_NAME, ApiConstants.FIELD_PHONE);
+        assertThat(response.updatedFields()).containsExactly(Client.Fields.name, Client.Fields.phone);
 
         ArgumentCaptor<Client> captor = ArgumentCaptor.forClass(Client.class);
         verify(clientRepository).save(captor.capture());
@@ -195,7 +195,7 @@ class ClientServiceTest {
 
         assertThat(response.id()).isEqualTo(1L);
         assertThat(response.message()).isEqualTo(ApiConstants.MSG_CLIENT_STATUS_UPDATED);
-        assertThat(response.updatedFields()).containsExactly(ApiConstants.FIELD_STATUS);
+        assertThat(response.updatedFields()).containsExactly(Client.Fields.status);
         assertThat(active.getStatus()).isEqualTo(ClientStatus.BANNED);
     }
 
