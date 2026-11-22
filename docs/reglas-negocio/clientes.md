@@ -60,10 +60,10 @@ Característica: Gestión de clients del restaurante
 
   @SG-CLI-08
   Escenario: Cambio manual de estado (baneo o rehabilitación) por el personal
-    Dado que existe un client con ID 1 en estado "ACTIVE"
-    Cuando el personal envía PATCH /api/v1/clients/1/status con status "BANNED"
-    Entonces la respuesta es HTTP 200 OK con updatedFields ["status"]
-    Y el client queda persistido en estado "BANNED"
+    Dado que existe un client con ID 1 en estado "ACTIVE" o "BANNED"
+    Cuando el personal envía PATCH /api/v1/clients/1/status con status "BANNED" o "ACTIVE"
+    Entonces la respuesta es HTTP 200 OK con "updatedFields" reflejando los campos modificados
+    Y si se rehabilita de "BANNED" a "ACTIVE", el contador lateCancellations se reinicia a 0
 
   @SG-CLI-09
   Escenario: Rechazo de cambio de estado sobre un client eliminado
@@ -73,22 +73,22 @@ Característica: Gestión de clients del restaurante
 
   @SG-CLI-10
   Escenario: Eliminación física de un client sin historial de reservas
-    Dado que el client con ID 1 no tiene reservations registradas
+    Dado que el client con ID 1 está "ACTIVE" y no tiene reservations registradas
     Cuando envío DELETE /api/v1/clients/1
     Entonces la respuesta es HTTP 204 No Content
     Y el registro se elimina físicamente de "data/data.json" sin reciclar su ID
 
   @SG-CLI-11
   Escenario: Soft-delete y anonimización de un client con historial de reservas no vigentes
-    Dado que el client con ID 2 tiene únicamente reservations en estado "CANCELLED" o finalizadas
+    Dado que el client con ID 2 está "ACTIVE" y tiene únicamente reservations en estado "CANCELLED" o finalizadas
     Cuando envío DELETE /api/v1/clients/2
     Entonces la respuesta es HTTP 204 No Content
     Y el client pasa a status "DELETED" con name "Deleted Client", email null y phone null
     Y sus reservations históricas conservan la referencia "clientId: 2" sin quedar huérfanas
 
   @SG-CLI-12
-  Escenario: Bloqueo de eliminación de un client con reservas vigentes
-    Dado que el client con ID 3 tiene al menos una reservation vigente en estado "PENDING" o "CONFIRMED"
+  Escenario: Bloqueo de eliminación de un client con reservas vigentes o en estado BANNED
+    Dado que el client con ID 3 tiene al menos una reservation vigente en estado "PENDING" o "CONFIRMED", o se encuentra en estado "BANNED"
     Cuando envío DELETE /api/v1/clients/3
-    Entonces la respuesta es HTTP 409 Conflict con código "CLIENTS_BS004"
+    Entonces la respuesta es HTTP 409 Conflict con código "CLIENTS_BS004" o "CLIENTS_BS007" (exigiendo levantar el baneo antes de eliminar)
 ```

@@ -60,6 +60,9 @@ public class ReservationService {
                 .filter(item -> status == null || item.getStatus() == status)
                 .filter(item -> clientId == null || Objects.equals(item.getClientId(), clientId))
                 .filter(item -> tableId == null || Objects.equals(item.getTableId(), tableId))
+                .sorted(Comparator.comparing(Reservation::getDate, Comparator.nullsLast(LocalDate::compareTo))
+                        .thenComparing(Reservation::getStartTime, Comparator.nullsLast(LocalTime::compareTo))
+                        .thenComparing(Reservation::getId, Comparator.nullsLast(Long::compareTo)))
                 .map(ReservationResponse::from)
                 .toList());
     }
@@ -151,6 +154,13 @@ public class ReservationService {
             if (!Objects.equals(existing.getClientId(), request.clientId())) {
                 throw new BusinessConflictException(ErrorCode.RESERVATION_CLIENT_IMMUTABLE);
             }
+            boolean isRescheduling = !Objects.equals(existing.getDate(), request.date())
+                    || !Objects.equals(existing.getStartTime(), request.startTime());
+            if (isRescheduling && isWithinLateCancellationWindow(existing, LocalDateTime.now(clock))) {
+                throw new BusinessConflictException(
+                        ErrorCode.RESERVATION_LATE_MODIFICATION_BLOCKED,
+                        properties.cancellationNoticeHours());
+            }
 
             assertClientCanBook(existing.getClientId());
             RestaurantTable table = assertTableFitsGuests(request.tableId(), request.guestCount());
@@ -186,6 +196,7 @@ public class ReservationService {
                 throw new BusinessConflictException(ErrorCode.RESERVATION_CANNOT_CONFIRM_CANCELLED);
             }
             assertReservationNotStarted(existing);
+            assertClientCanBook(existing.getClientId());
 
             existing.setStatus(ReservationStatus.CONFIRMED);
             Reservation saved = reservationRepository.save(existing);
@@ -298,11 +309,7 @@ public class ReservationService {
     }
 
     private void recordLateCancellationStrikeIfNeeded(Reservation cancelled) {
-        LocalDateTime now = LocalDateTime.now(clock);
-        LocalDateTime startDateTime = LocalDateTime.of(cancelled.getDate(), cancelled.getStartTime());
-        LocalDateTime freeCancellationDeadline = startDateTime.minusHours(properties.cancellationNoticeHours());
-
-        if (now.isBefore(freeCancellationDeadline)) {
+        if (!isWithinLateCancellationWindow(cancelled, LocalDateTime.now(clock))) {
             return;
         }
 
@@ -319,6 +326,12 @@ public class ReservationService {
                     }
                     clientRepository.save(client);
                 });
+    }
+
+    private boolean isWithinLateCancellationWindow(Reservation reservation, LocalDateTime now) {
+        LocalDateTime startDateTime = LocalDateTime.of(reservation.getDate(), reservation.getStartTime());
+        LocalDateTime freeCancellationDeadline = startDateTime.minusHours(properties.cancellationNoticeHours());
+        return now.isAfter(freeCancellationDeadline);
     }
 
     private Reservation loadReservation(Long id) {

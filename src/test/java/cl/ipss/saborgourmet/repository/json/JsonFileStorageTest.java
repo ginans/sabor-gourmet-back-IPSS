@@ -66,6 +66,7 @@ class JsonFileStorageTest {
         assertThat(Files.exists(storageFile)).isTrue();
         String jsonContent = Files.readString(storageFile);
         assertThat(jsonContent).contains("\"clients\"", "\"tables\"", "\"reservations\"");
+        assertThat(jsonContent).contains("\"nextClientId\" : 1", "\"nextTableId\" : 1", "\"nextReservationId\" : 1");
         assertThat(clientRepository.findAll()).isEmpty();
         assertThat(tableRepository.findAll()).isEmpty();
         assertThat(reservationRepository.findAll()).isEmpty();

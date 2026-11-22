@@ -103,21 +103,21 @@ Característica: Consulta de disponibilidad y ciclo de vida de reservations
     Y los cambios se persisten en "data/data.json"
 
   @SG-RES-15
-  Escenario: Rechazo de modificación sobre una reservation CANCELLED, pasada o intentando cambiar clientId
-    Dado que la reservation está en status "CANCELLED", ya inició en el pasado o la solicitud cambia el clientId titular
+  Escenario: Rechazo de modificación sobre una reservation CANCELLED, pasada, cambiando clientId o reagendando con menos de 24h
+    Dado que la reservation está en status "CANCELLED", ya inició en el pasado, cambia el clientId titular o intenta mover fecha/hora dentro de la ventana de < 24h
     Cuando envío PUT /api/v1/reservations/{id}
-    Entonces la respuesta es HTTP 409 Conflict con código "RESERVATIONS_BS007", "RESERVATIONS_BS011" o "RESERVATIONS_BS012"
+    Entonces la respuesta es HTTP 409 Conflict con código "RESERVATIONS_BS007", "RESERVATIONS_BS011", "RESERVATIONS_BS012" o "RESERVATIONS_BS013"
 
   @SG-RES-16
-  Escenario: Confirmación exitosa de una reservation PENDING futura por client o personal
-    Dado que existe una reservation futura en status "PENDING"
+  Escenario: Confirmación exitosa de una reservation PENDING futura por client activo o personal
+    Dado que existe una reservation futura en status "PENDING" asociada a un client "ACTIVE"
     Cuando el client o el personal envía PATCH /api/v1/reservations/{id}/confirm
     Entonces la respuesta es HTTP 200 OK
     Y la reservation cambia a status "CONFIRMED" en "data/data.json"
 
   @SG-RES-17
-  Escenario: Rechazo de confirmación sobre una reservation CONFIRMED, CANCELLED o pasada
-    Dado que la reservation está en status "CONFIRMED", "CANCELLED" o su fecha/hora de inicio ya ocurrió
+  Escenario: Rechazo de confirmación sobre una reservation CONFIRMED, CANCELLED, pasada o de client no activo
+    Dado que la reservation está en status "CONFIRMED", "CANCELLED", su fecha/hora de inicio ya ocurrió o el client titular está "BANNED"/"DELETED"
     Cuando envío PATCH /api/v1/reservations/{id}/confirm
     Entonces la respuesta es HTTP 409 Conflict con categoría "BUSINESS"
 

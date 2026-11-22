@@ -192,18 +192,40 @@ class ClientServiceTest {
     }
 
     @Test
-    @DisplayName("SG-CLI-08: Allows manual transition between ACTIVE and BANNED and reports updated status field")
+    @DisplayName("SG-CLI-08: Allows manual transition between ACTIVE and BANNED and resets strikes on rehabilitation")
     void updateStatusAllowsBanAndUnban() {
-        Client active = Client.builder().id(1L).name("Ana").status(ClientStatus.ACTIVE).build();
+        Client active = Client.builder().id(1L).name("Ana").status(ClientStatus.ACTIVE).lateCancellations(0).build();
         when(clientRepository.findById(1L)).thenReturn(Optional.of(active));
         when(clientRepository.save(any(Client.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        OperationResponse response = clientService.updateStatus(1L, new ClientStatusRequest(ClientStatus.BANNED));
+        OperationResponse banned = clientService.updateStatus(1L, new ClientStatusRequest(ClientStatus.BANNED));
 
-        assertThat(response.id()).isEqualTo(1L);
-        assertThat(response.message()).isEqualTo(ApiConstants.MSG_CLIENT_STATUS_UPDATED);
-        assertThat(response.updatedFields()).containsExactly(Client.Fields.status);
+        assertThat(banned.id()).isEqualTo(1L);
+        assertThat(banned.message()).isEqualTo(ApiConstants.MSG_CLIENT_STATUS_UPDATED);
+        assertThat(banned.updatedFields()).containsExactly(Client.Fields.status);
         assertThat(active.getStatus()).isEqualTo(ClientStatus.BANNED);
+
+        active.setLateCancellations(3);
+        OperationResponse rehabilitated = clientService.updateStatus(1L, new ClientStatusRequest(ClientStatus.ACTIVE));
+
+        assertThat(rehabilitated.updatedFields())
+                .containsExactly(Client.Fields.status, Client.Fields.lateCancellations);
+        assertThat(active.getStatus()).isEqualTo(ClientStatus.ACTIVE);
+        assertThat(active.getLateCancellations()).isZero();
+    }
+
+    @Test
+    @DisplayName("Regression: Blocks direct deletion of BANNED clients until the ban is lifted")
+    void deleteBlocksBannedClientUntilUnbanned() {
+        Client banned = Client.builder().id(4L).status(ClientStatus.BANNED).lateCancellations(3).build();
+        when(clientRepository.findById(4L)).thenReturn(Optional.of(banned));
+
+        assertThatThrownBy(() -> clientService.delete(4L))
+                .isInstanceOf(BusinessConflictException.class)
+                .extracting(ex -> ((BusinessConflictException) ex).getErrorCode())
+                .isEqualTo(ErrorCode.CLIENT_BANNED_DELETE_BLOCKED);
+        verify(clientRepository, never()).deleteById(4L);
+        verify(clientRepository, never()).save(any());
     }
 
     @Test

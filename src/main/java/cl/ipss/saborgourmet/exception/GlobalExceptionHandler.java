@@ -8,11 +8,11 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
@@ -42,9 +42,11 @@ public class GlobalExceptionHandler {
             MethodArgumentNotValidException ex,
             HttpServletRequest request) {
         Map<String, String> fieldErrors = new LinkedHashMap<>();
-        for (FieldError error : ex.getBindingResult().getFieldErrors()) {
-            fieldErrors.putIfAbsent(error.getField(), error.getDefaultMessage());
-        }
+        ex.getBindingResult().getFieldErrors().stream()
+                .sorted(Comparator.comparing(FieldError::getField)
+                        .thenComparing(e -> e.getCode() != null ? e.getCode() : "")
+                        .thenComparing(e -> e.getDefaultMessage() != null ? e.getDefaultMessage() : ""))
+                .forEach(error -> fieldErrors.putIfAbsent(error.getField(), error.getDefaultMessage()));
         return buildResponse(
                 ErrorCode.VALIDATION_FAILED,
                 ErrorCode.VALIDATION_FAILED.formatMessage(),
@@ -117,14 +119,12 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(HttpMediaTypeNotAcceptableException.class)
-    public ResponseEntity<String> handleNotAcceptable(
+    public ResponseEntity<Void> handleNotAcceptable(
             HttpMediaTypeNotAcceptableException ex,
             HttpServletRequest request) {
         ErrorCode errorCode = ErrorCode.NOT_ACCEPTABLE;
         log.debug("Validation error [{}] at {}: {}", errorCode.getCode(), request.getRequestURI(), errorCode.formatMessage());
-        return ResponseEntity.status(errorCode.getHttpStatus())
-                .contentType(MediaType.TEXT_PLAIN)
-                .body(errorCode.formatMessage());
+        return ResponseEntity.status(errorCode.getHttpStatus()).build();
     }
 
     @ExceptionHandler(DomainException.class)

@@ -1,12 +1,17 @@
 package cl.ipss.saborgourmet.controller;
 
 import cl.ipss.saborgourmet.config.ApiConstants;
+import cl.ipss.saborgourmet.dto.error.ApiErrorResponse;
 import cl.ipss.saborgourmet.dto.reservation.AvailabilityResponse;
 import cl.ipss.saborgourmet.dto.table.TableRequest;
 import cl.ipss.saborgourmet.dto.table.TableResponse;
 import cl.ipss.saborgourmet.service.ReservationService;
 import cl.ipss.saborgourmet.service.TableService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
@@ -45,6 +50,11 @@ public class TableController {
 
     @GetMapping("/availability")
     @Operation(summary = "Check table availability", description = "Returns active tables without overlapping reservations that satisfy capacity and minimum occupancy rules")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Available tables retrieved successfully"),
+            @ApiResponse(responseCode = "400", description = "Invalid date, time, guest count, or outside business hours",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+    })
     public ResponseEntity<AvailabilityResponse> checkAvailability(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.TIME) LocalTime time,
@@ -54,6 +64,11 @@ public class TableController {
 
     @GetMapping
     @Operation(summary = "List tables", description = "Returns all configured tables, optionally filtered by active status")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Tables retrieved successfully"),
+            @ApiResponse(responseCode = "400", description = "Invalid query parameter",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+    })
     public ResponseEntity<List<TableResponse>> findAll(
             @RequestParam(defaultValue = "false") boolean onlyActive) {
         return ResponseEntity.ok(tableService.findAll(onlyActive));
@@ -61,6 +76,13 @@ public class TableController {
 
     @GetMapping("/{id}")
     @Operation(summary = "Get table by ID")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Table found"),
+            @ApiResponse(responseCode = "400", description = "Invalid table ID",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Table not found",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+    })
     public ResponseEntity<TableResponse> findById(
             @PathVariable @Positive(message = "Table ID must be positive") Long id) {
         return ResponseEntity.ok(tableService.findById(id));
@@ -68,6 +90,13 @@ public class TableController {
 
     @PostMapping
     @Operation(summary = "Create a new table")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Table created successfully"),
+            @ApiResponse(responseCode = "400", description = "Invalid table payload",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+            @ApiResponse(responseCode = "409", description = "Table number already exists",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+    })
     public ResponseEntity<TableResponse> create(@Valid @RequestBody TableRequest request) {
         TableResponse created = tableService.create(request);
         URI location = ServletUriComponentsBuilder.fromCurrentRequest()
@@ -79,6 +108,15 @@ public class TableController {
 
     @PutMapping("/{id}")
     @Operation(summary = "Update table configuration")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Table updated successfully"),
+            @ApiResponse(responseCode = "400", description = "Invalid table ID or payload",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Table not found",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+            @ApiResponse(responseCode = "409", description = "Duplicate number or conflict with active reservations",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+    })
     public ResponseEntity<TableResponse> update(
             @PathVariable @Positive(message = "Table ID must be positive") Long id,
             @Valid @RequestBody TableRequest request) {
@@ -87,6 +125,15 @@ public class TableController {
 
     @DeleteMapping("/{id}")
     @Operation(summary = "Delete table", description = "Deletes a table only if it has no associated reservations")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Table deleted successfully"),
+            @ApiResponse(responseCode = "400", description = "Invalid table ID",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Table not found",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+            @ApiResponse(responseCode = "409", description = "Table has associated reservations",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+    })
     public ResponseEntity<Void> delete(
             @PathVariable @Positive(message = "Table ID must be positive") Long id) {
         tableService.delete(id);

@@ -102,6 +102,12 @@ public enum ErrorCode {
             ErrorCategory.BUSINESS,
             HttpStatus.CONFLICT
     ),
+    CLIENT_BANNED_DELETE_BLOCKED(
+            "CLIENTS_BS007",
+            "Banned clients cannot be deleted directly. Lift the ban before deleting this client.",
+            ErrorCategory.BUSINESS,
+            HttpStatus.CONFLICT
+    ),
 
     TABLE_NOT_FOUND(
             "TABLES_BS001",
@@ -215,6 +221,12 @@ public enum ErrorCode {
     RESERVATION_CLIENT_IMMUTABLE(
             "RESERVATIONS_BS012",
             "The client owner of an existing reservation cannot be changed.",
+            ErrorCategory.BUSINESS,
+            HttpStatus.CONFLICT
+    ),
+    RESERVATION_LATE_MODIFICATION_BLOCKED(
+            "RESERVATIONS_BS013",
+            "Reservations starting within %d hours cannot be rescheduled to a different date or time.",
             ErrorCategory.BUSINESS,
             HttpStatus.CONFLICT
     ),

@@ -34,13 +34,13 @@ HTTP Request (JSON)
   data/data.json
 ```
 
-El manejo centralizado de excepciones ([`GlobalExceptionHandler`](src/main/java/cl/ipss/saborgourmet/exception/GlobalExceptionHandler.java)) traduce errores de validación (`VALIDATION`), negocio (`BUSINESS`) e infraestructura (`INFRASTRUCTURE`) mediante [`ErrorCode`](src/main/java/cl/ipss/saborgourmet/exception/ErrorCode.java), devolviendo respuestas JSON uniformes (`400`, `404`, `405`, `406`, `409`, `415`, `500`) sin exponer trazas internas.
+El manejo centralizado de excepciones ([`GlobalExceptionHandler`](src/main/java/cl/ipss/saborgourmet/exception/GlobalExceptionHandler.java)) traduce errores de validación (`VALIDATION`), negocio (`BUSINESS`) e infraestructura (`INFRASTRUCTURE`) mediante [`ErrorCode`](src/main/java/cl/ipss/saborgourmet/exception/ErrorCode.java), devolviendo respuestas JSON uniformes (`400`, `404`, `405`, `409`, `415`, `500`) y `406 Not Acceptable` sin cuerpo cuando el encabezado `Accept` no es negociable, sin exponer trazas internas.
 
 ---
 
 ## Ejecución Rápida
 
-### 1. Ejecutar pruebas automatizadas (51 tests: unitarios, integración, regresión y concurrencia)
+### 1. Ejecutar pruebas automatizadas (54 tests: unitarios, integración, regresión y concurrencia)
 ```bash
 ./mvnw clean test
 ```
@@ -72,23 +72,23 @@ La API queda disponible en `http://localhost:8080`.
 
 | Recurso | Método y Ruta | Descripción | Códigos HTTP |
 | :--- | :--- | :--- | :--- |
-| **Clients** | `GET /api/v1/clients` | Listar clientes (excluye `DELETED` por defecto; opcional `?includeDeleted=true`) | `200` |
+| **Clients** | `GET /api/v1/clients` | Listar clientes (excluye `DELETED` por defecto; opcional `?includeDeleted=true`) | `200`, `400` |
 | | `GET /api/v1/clients/{id}` | Consultar cliente por ID | `200`, `400`, `404` |
 | | `POST /api/v1/clients` | Registrar cliente (devuelve solo `id` y mensaje sin eco de PII) | `201`, `400`, `409`, `415` |
 | | `PUT /api/v1/clients/{id}` | Actualizar cliente (devuelve `id`, mensaje y `updatedFields` sin valores) | `200`, `400`, `404`, `409` |
-| | `PATCH /api/v1/clients/{id}/status` | Cambiar estado operativo (`ACTIVE` / `BANNED`) | `200`, `400`, `404`, `409` |
-| | `DELETE /api/v1/clients/{id}` | Eliminación física sin historial o soft-delete anonimizado con historial | `204`, `400`, `404`, `409` |
-| **Tables** | `GET /api/v1/tables` | Listar mesas (opcional `?onlyActive=true`) | `200` |
+| | `PATCH /api/v1/clients/{id}/status` | Cambiar estado operativo (`ACTIVE` / `BANNED`; rehabilitar reinicia `lateCancellations`) | `200`, `400`, `404`, `409` |
+| | `DELETE /api/v1/clients/{id}` | Eliminación física sin historial o soft-delete anonimizado con historial (bloquea `BANNED` hasta levantar baneo) | `204`, `400`, `404`, `409` |
+| **Tables** | `GET /api/v1/tables` | Listar mesas (opcional `?onlyActive=true`) | `200`, `400` |
 | | `GET /api/v1/tables/{id}` | Consultar mesa por ID | `200`, `400`, `404` |
 | | `GET /api/v1/tables/availability?date=&time=&guests=` | Consultar mesas disponibles (turno 120 min, ocupación mínima 75%) | `200`, `400` |
 | | `POST /api/v1/tables` | Crear mesa | `201`, `400`, `409` |
 | | `PUT /api/v1/tables/{id}` | Actualizar configuración de mesa | `200`, `400`, `404`, `409` |
 | | `DELETE /api/v1/tables/{id}` | Eliminar mesa sin reservas asociadas | `204`, `400`, `404`, `409` |
-| **Reservations** | `GET /api/v1/reservations` | Listar reservas (filtros opcionales: `date`, `status`, `clientId`, `tableId`) | `200` |
+| **Reservations** | `GET /api/v1/reservations` | Listar reservas (filtros opcionales: `date`, `status`, `clientId`, `tableId`) | `200`, `400` |
 | | `GET /api/v1/reservations/{id}` | Consultar reserva por ID | `200`, `400`, `404` |
 | | `POST /api/v1/reservations` | Crear reserva (`PENDING`, bloquea mesa inmediatamente) | `201`, `400`, `404`, `409` |
-| | `PUT /api/v1/reservations/{id}` | Modificar reserva vigente futura (sin cambiar `clientId`) | `200`, `400`, `404`, `409` |
-| | `PATCH /api/v1/reservations/{id}/confirm` | Confirmar reserva pendiente futura (cliente o personal) | `200`, `400`, `404`, `409` |
+| | `PUT /api/v1/reservations/{id}` | Modificar reserva vigente futura (sin cambiar `clientId` ni reagendar dentro de < 24h) | `200`, `400`, `404`, `409` |
+| | `PATCH /api/v1/reservations/{id}/confirm` | Confirmar reserva pendiente futura de cliente `ACTIVE` | `200`, `400`, `404`, `409` |
 | | **`PATCH /api/v1/reservations/{id}/cancel`** | **Cancelar reserva futura:** cambia estado a `CANCELLED`, persiste en JSON, libera disponibilidad inmediatamente y evalúa cancelación tardía (< 24h) | `200`, `400`, `404`, `409` |
 
 ---

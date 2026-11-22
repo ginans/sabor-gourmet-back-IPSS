@@ -254,10 +254,11 @@ class ReservationServiceTest {
     }
 
     @Test
-    @DisplayName("SG-RES-16 / SG-RES-17: Confirms pending reservation and rejects already confirmed or cancelled")
+    @DisplayName("SG-RES-16 / SG-RES-17: Confirms pending reservation for active client and rejects confirmed, cancelled, or banned client")
     void confirmTransitionsOnlyFromPending() {
+        stubActiveClient(1L);
         Reservation pending = Reservation.builder()
-                .id(1L).date(LocalDate.of(2026, 12, 5)).startTime(LocalTime.of(20, 0))
+                .id(1L).clientId(1L).date(LocalDate.of(2026, 12, 5)).startTime(LocalTime.of(20, 0))
                 .status(ReservationStatus.PENDING).build();
         when(reservationRepository.findById(1L)).thenReturn(Optional.of(pending));
         when(reservationRepository.save(any(Reservation.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -271,13 +272,24 @@ class ReservationServiceTest {
                 .isEqualTo(ErrorCode.RESERVATION_ALREADY_CONFIRMED);
 
         Reservation cancelled = Reservation.builder()
-                .id(2L).date(LocalDate.of(2026, 12, 5)).startTime(LocalTime.of(20, 0))
+                .id(2L).clientId(1L).date(LocalDate.of(2026, 12, 5)).startTime(LocalTime.of(20, 0))
                 .status(ReservationStatus.CANCELLED).build();
         when(reservationRepository.findById(2L)).thenReturn(Optional.of(cancelled));
         assertThatThrownBy(() -> reservationService.confirm(2L))
                 .isInstanceOf(BusinessConflictException.class)
                 .extracting(ex -> ((BusinessConflictException) ex).getErrorCode())
                 .isEqualTo(ErrorCode.RESERVATION_CANNOT_CONFIRM_CANCELLED);
+
+        Reservation pendingForBanned = Reservation.builder()
+                .id(3L).clientId(2L).date(LocalDate.of(2026, 12, 5)).startTime(LocalTime.of(20, 0))
+                .status(ReservationStatus.PENDING).build();
+        when(reservationRepository.findById(3L)).thenReturn(Optional.of(pendingForBanned));
+        when(clientRepository.findById(2L)).thenReturn(Optional.of(
+                Client.builder().id(2L).status(ClientStatus.BANNED).build()));
+        assertThatThrownBy(() -> reservationService.confirm(3L))
+                .isInstanceOf(BusinessConflictException.class)
+                .extracting(ex -> ((BusinessConflictException) ex).getErrorCode())
+                .isEqualTo(ErrorCode.CLIENT_NOT_ACTIVE);
     }
 
     @Test
@@ -347,6 +359,45 @@ class ReservationServiceTest {
                 .isInstanceOf(BusinessConflictException.class)
                 .extracting(ex -> ((BusinessConflictException) ex).getErrorCode())
                 .isEqualTo(ErrorCode.RESERVATION_ALREADY_CANCELLED);
+    }
+
+    @Test
+    @DisplayName("Regression: Blocks rescheduling inside <24h window and allows free cancellation at exact 24h boundary")
+    void blocksLateRescheduleBypassAndRespectsExact24HourBoundary() {
+        Reservation within24h = Reservation.builder()
+                .id(40L).clientId(1L).tableId(1L)
+                .date(LocalDate.of(2026, 12, 1))
+                .startTime(LocalTime.of(20, 0)).endTime(LocalTime.of(22, 0))
+                .guestCount(4).status(ReservationStatus.PENDING).build();
+        when(reservationRepository.findById(40L)).thenReturn(Optional.of(within24h));
+
+        assertThatThrownBy(() -> reservationService.update(
+                40L, new ReservationRequest(1L, 1L, LocalDate.of(2026, 12, 10), LocalTime.of(20, 0), 4, null)))
+                .isInstanceOf(BusinessConflictException.class)
+                .extracting(ex -> ((BusinessConflictException) ex).getErrorCode())
+                .isEqualTo(ErrorCode.RESERVATION_LATE_MODIFICATION_BLOCKED);
+
+        stubActiveClient(1L);
+        stubActiveTable(1L, 4);
+        when(reservationRepository.findByTableIdAndDate(1L, LocalDate.of(2026, 12, 1))).thenReturn(List.of(within24h));
+        when(reservationRepository.save(any(Reservation.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ReservationResponse notesUpdated = reservationService.update(
+                40L, new ReservationRequest(1L, 1L, LocalDate.of(2026, 12, 1), LocalTime.of(20, 0), 4, "Allergy note"));
+        assertThat(notesUpdated.notes()).isEqualTo("Allergy note");
+
+        Client exactBoundaryClient = Client.builder()
+                .id(7L).name("Boundary").email("boundary@correo.cl").status(ClientStatus.ACTIVE).lateCancellations(0).build();
+        Reservation exact24h = Reservation.builder()
+                .id(41L).clientId(7L).tableId(1L)
+                .date(LocalDate.of(2026, 12, 2))
+                .startTime(LocalTime.of(10, 0)).endTime(LocalTime.of(12, 0))
+                .guestCount(4).status(ReservationStatus.CONFIRMED).build();
+        when(reservationRepository.findById(41L)).thenReturn(Optional.of(exact24h));
+
+        ReservationResponse cancelled = reservationService.cancel(41L);
+        assertThat(cancelled.status()).isEqualTo(ReservationStatus.CANCELLED);
+        assertThat(exactBoundaryClient.getLateCancellations()).isZero();
     }
 
     private void stubActiveClient(Long id) {

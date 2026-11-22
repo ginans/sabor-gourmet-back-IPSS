@@ -13,6 +13,7 @@ import cl.ipss.saborgourmet.repository.StorageTransactionManager;
 import cl.ipss.saborgourmet.repository.TableRepository;
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import lombok.RequiredArgsConstructor;
@@ -40,6 +41,8 @@ public class TableService {
     public List<TableResponse> findAll(boolean onlyActive) {
         return transactionManager.executeRead(() -> tableRepository.findAll().stream()
                 .filter(table -> !onlyActive || table.isActive())
+                .sorted(Comparator.comparing(RestaurantTable::getNumber, Comparator.nullsLast(Integer::compareTo))
+                        .thenComparing(RestaurantTable::getId, Comparator.nullsLast(Long::compareTo)))
                 .map(TableResponse::from)
                 .toList());
     }

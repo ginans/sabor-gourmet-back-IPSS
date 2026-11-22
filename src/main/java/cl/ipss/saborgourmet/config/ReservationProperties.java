@@ -1,8 +1,11 @@
 package cl.ipss.saborgourmet.config;
 
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
@@ -39,6 +42,19 @@ public record ReservationProperties(
         @Min(value = 1, message = "Maximum late cancellations must be at least 1")
         int maxLateCancellations
 ) {
+
+    /**
+     * Valida en el arranque que la ventana de apertura a cierre permita al menos un turno completo.
+     */
+    @AssertTrue(message = "Closing time must allow at least one full turn after opening time")
+    public boolean isBusinessHoursWindowValid() {
+        if (openingTime == null || closingTime == null) {
+            return true;
+        }
+        LocalDateTime opening = LocalDateTime.of(LocalDate.EPOCH, openingTime);
+        LocalDateTime closing = LocalDateTime.of(LocalDate.EPOCH, closingTime);
+        return !opening.plusMinutes(turnDurationMinutes).isAfter(closing);
+    }
 
     /**
      * Calcula la cantidad mínima de personas permitida para una mesa aplicando el

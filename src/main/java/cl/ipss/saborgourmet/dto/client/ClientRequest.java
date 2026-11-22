@@ -21,6 +21,7 @@ public record ClientRequest(
         String email,
 
         @NotBlank(message = "Phone is required")
+        @Size(max = 25, message = "Phone must not exceed 25 characters")
         @Pattern(regexp = ApiConstants.PHONE_REGEX, message = "Phone must contain 7 to 15 digits (optional '+', spaces or dashes)")
         String phone
 ) {

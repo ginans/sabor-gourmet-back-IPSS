@@ -108,9 +108,22 @@ class ClientControllerIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.fieldErrors.phone").exists());
 
+        mockMvc.perform(post(ApiConstants.CLIENTS_PATH)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "Control Char Phone",
+                                  "email": "ctrl@correo.cl",
+                                  "phone": "1234567\\t\\n\\r"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.phone").exists());
+
         mockMvc.perform(get(ApiConstants.CLIENTS_PATH)
-                        .accept(MediaType.TEXT_PLAIN))
-                .andExpect(status().isNotAcceptable());
+                        .accept(MediaType.APPLICATION_XML))
+                .andExpect(status().isNotAcceptable())
+                .andExpect(result -> assertThat(result.getResponse().getContentAsString()).isEmpty());
 
         mockMvc.perform(get(ApiConstants.CLIENTS_PATH + "/-1"))
                 .andExpect(status().isBadRequest())
@@ -188,6 +201,18 @@ class ClientControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(clientWithoutHistoryId))
                 .andExpect(jsonPath("$.message").value(ApiConstants.MSG_CLIENT_STATUS_UPDATED))
+                .andExpect(jsonPath("$.updatedFields[0]").value(Client.Fields.status));
+
+        mockMvc.perform(delete(ApiConstants.CLIENTS_PATH + "/" + clientWithoutHistoryId))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value(ErrorCode.CLIENT_BANNED_DELETE_BLOCKED.getCode()));
+
+        mockMvc.perform(patch(ApiConstants.CLIENTS_PATH + "/" + clientWithoutHistoryId + "/status")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "status": "ACTIVE" }
+                                """))
+                .andExpect(status().isOk())
                 .andExpect(jsonPath("$.updatedFields[0]").value(Client.Fields.status));
 
         mockMvc.perform(delete(ApiConstants.CLIENTS_PATH + "/" + clientWithoutHistoryId))

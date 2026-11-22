@@ -15,13 +15,13 @@ import lombok.Setter;
 public class RestaurantData {
 
     @Setter
-    private long nextClientId;
+    private long nextClientId = 1L;
 
     @Setter
-    private long nextTableId;
+    private long nextTableId = 1L;
 
     @Setter
-    private long nextReservationId;
+    private long nextReservationId = 1L;
 
     private List<Client> clients = new ArrayList<>();
     private List<RestaurantTable> tables = new ArrayList<>();

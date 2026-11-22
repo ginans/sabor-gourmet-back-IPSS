@@ -5,12 +5,26 @@
     "description": "Self-contained and infinitely reproducible Postman Collection v2.1 covering full CRUD for Clients and Tables (including physical and anonymized deletes), Availability (75% floor), Reservations lifecycle, dynamic ID capture, pm.test assertions, error cases (400/404/409/415/406), and post-restart persistence check.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "const target = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000);",
+          "const isoDate = target.toISOString().slice(0, 10);",
+          "pm.collectionVariables.set('reservationDate', isoDate);"
+        ]
+      }
+    }
+  ],
   "variable": [
     { "key": "baseUrl", "value": "http://localhost:8080" },
-    { "key": "reservationDate", "value": "2026-12-22" },
+    { "key": "reservationDate", "value": "" },
     { "key": "createdClientId", "value": "" },
     { "key": "createdClientEmail", "value": "" },
     { "key": "tempClientId", "value": "" },
+    { "key": "tempClientEmail", "value": "" },
     { "key": "createdTableId", "value": "" },
     { "key": "createdTableNumber", "value": "" },
     { "key": "tempTableId", "value": "" },
@@ -168,6 +182,25 @@
           }
         },
         {
+          "name": "List Clients — Not Acceptable Accept Header (406)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 406 Not Acceptable', () => pm.response.to.have.status(406));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/xml" }],
+            "url": "{{baseUrl}}/api/v1/clients"
+          }
+        },
+        {
           "name": "Create Client — Duplicate Email (409 Conflict)",
           "event": [
             {
@@ -268,6 +301,22 @@
             "body": { "mode": "raw", "raw": "{\n  \"status\": \"BANNED\"\n}" },
             "url": "{{baseUrl}}/api/v1/clients/{{createdClientId}}/status"
           }
+        },
+        {
+          "name": "Delete Banned Client — Blocked Until Unbanned (409 Conflict)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 409 Conflict', () => pm.response.to.have.status(409));",
+                  "pm.test('Returns CLIENTS_BS007', () => pm.expect(pm.response.json().code).to.eql('CLIENTS_BS007'));"
+                ]
+              }
+            }
+          ],
+          "request": { "method": "DELETE", "url": "{{baseUrl}}/api/v1/clients/{{createdClientId}}" }
         },
         {
           "name": "Reactivate Created Client (200 OK)",

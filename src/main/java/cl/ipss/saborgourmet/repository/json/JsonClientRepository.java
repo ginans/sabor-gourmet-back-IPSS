@@ -55,7 +55,7 @@ public class JsonClientRepository implements ClientRepository {
 
     @Override
     public boolean deleteById(Long id) {
-        return storage.mutateData(data ->
+        return storage.mutateIfChanged(data ->
                 data.getClients().removeIf(client -> Objects.equals(client.getId(), id)));
     }
 }

@@ -18,6 +18,7 @@ import cl.ipss.saborgourmet.repository.StorageTransactionManager;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -45,6 +46,7 @@ public class ClientService {
     public List<ClientResponse> findAll(boolean includeDeleted) {
         return transactionManager.executeRead(() -> clientRepository.findAll().stream()
                 .filter(client -> includeDeleted || client.getStatus() != ClientStatus.DELETED)
+                .sorted(Comparator.comparing(Client::getId, Comparator.nullsLast(Long::compareTo)))
                 .map(ClientResponse::from)
                 .toList());
     }
@@ -126,6 +128,7 @@ public class ClientService {
 
     /**
      * Cambia manualmente el estado operativo del cliente entre {@code ACTIVE} y {@code BANNED}.
+     * Al rehabilitar un cliente desde {@code BANNED} a {@code ACTIVE}, reinicia su contador de cancelaciones tardías.
      */
     public OperationResponse updateStatus(Long id, ClientStatusRequest request) {
         return transactionManager.executeWrite(() -> {
@@ -138,10 +141,18 @@ public class ClientService {
 
             List<String> updatedFields = new ArrayList<>();
             if (existing.getStatus() != request.status()) {
+                ClientStatus previousStatus = existing.getStatus();
                 existing.setStatus(request.status());
                 updatedFields.add(Client.Fields.status);
+                if (previousStatus == ClientStatus.BANNED
+                        && request.status() == ClientStatus.ACTIVE
+                        && existing.getLateCancellations() > 0) {
+                    existing.setLateCancellations(0);
+                    updatedFields.add(Client.Fields.lateCancellations);
+                }
                 clientRepository.save(existing);
-                log.info("Updated client id={} status to {}", existing.getId(), existing.getStatus());
+                log.info("Updated client id={} status to {} fields={}",
+                        existing.getId(), existing.getStatus(), updatedFields);
             }
 
             return OperationResponse.ofUpdated(
@@ -155,11 +166,15 @@ public class ClientService {
     /**
      * Elimina físicamente al cliente si no posee reservas, o aplica soft-delete con
      * anonimización de datos personales si solo posee historial cancelado o finalizado.
+     * Exige levantar previamente el estado {@code BANNED} para impedir la evasión del baneo.
      */
     public void delete(Long id) {
         transactionManager.executeWrite(() -> {
             Client existing = getClientOrThrow(id);
             ensureNotDeleted(existing);
+            if (existing.getStatus() == ClientStatus.BANNED) {
+                throw new BusinessConflictException(ErrorCode.CLIENT_BANNED_DELETE_BLOCKED);
+            }
 
             List<Reservation> clientReservations = reservationRepository.findByClientId(id);
             if (clientReservations.isEmpty()) {

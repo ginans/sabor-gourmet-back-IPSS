@@ -191,6 +191,13 @@ class ReservationControllerIntegrationTest {
 
         for (int i = 0; i < 3; i++) {
             Long resId = createReservation(clientId, tableId, within24hDate, within24hTime, 3);
+            if (i == 0) {
+                mockMvc.perform(put(ApiConstants.RESERVATIONS_PATH + "/" + resId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(bookingPayload(clientId, tableId, futureDate, "20:00", 3)))
+                        .andExpect(status().isConflict())
+                        .andExpect(jsonPath("$.code").value(ErrorCode.RESERVATION_LATE_MODIFICATION_BLOCKED.getCode()));
+            }
             mockMvc.perform(patch(ApiConstants.RESERVATIONS_PATH + "/" + resId + "/cancel"))
                     .andExpect(status().isOk());
         }
@@ -205,6 +212,20 @@ class ReservationControllerIntegrationTest {
                         .content(bookingPayload(clientId, tableId, futureDate, "20:00", 3)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value(ErrorCode.CLIENT_NOT_ACTIVE.getCode()));
+
+        mockMvc.perform(patch(ApiConstants.CLIENTS_PATH + "/" + clientId + "/status")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "status": "ACTIVE" }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.updatedFields[0]").value("status"))
+                .andExpect(jsonPath("$.updatedFields[1]").value("lateCancellations"));
+
+        mockMvc.perform(get(ApiConstants.CLIENTS_PATH + "/" + clientId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value(ClientStatus.ACTIVE.name()))
+                .andExpect(jsonPath("$.lateCancellations").value(0));
     }
 
     @Test

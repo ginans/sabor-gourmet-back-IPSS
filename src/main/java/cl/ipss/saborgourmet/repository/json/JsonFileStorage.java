@@ -139,6 +139,28 @@ public class JsonFileStorage implements StorageTransactionManager {
     }
 
     /**
+     * Ejecuta una mutación condicional marcando la sesión como sucia únicamente si modificó datos.
+     */
+    public boolean mutateIfChanged(Function<RestaurantData, Boolean> mutator) {
+        WriteSession activeWrite = writeSession.get();
+        if (activeWrite != null) {
+            boolean changed = Boolean.TRUE.equals(mutator.apply(activeWrite.data));
+            if (changed) {
+                activeWrite.dirty = true;
+            }
+            return changed;
+        }
+        return executeWrite(() -> {
+            WriteSession session = writeSession.get();
+            boolean changed = Boolean.TRUE.equals(mutator.apply(session.data));
+            if (changed) {
+                session.dirty = true;
+            }
+            return changed;
+        });
+    }
+
+    /**
      * Inserta o reemplaza una entidad dentro de una lista del almacén asignando un ID único
      * proveniente de su secuencia persistente cuando la entidad es nueva.
      */

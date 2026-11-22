@@ -53,7 +53,7 @@ public class JsonTableRepository implements TableRepository {
 
     @Override
     public boolean deleteById(Long id) {
-        return storage.mutateData(data ->
+        return storage.mutateIfChanged(data ->
                 data.getTables().removeIf(table -> Objects.equals(table.getId(), id)));
     }
 }
