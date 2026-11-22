@@ -1,7 +1,7 @@
 # Módulo 2: Gestión de Clientes (`SG-CLI-01` a `SG-CLI-12`)
 
 > **Rama de implementación:** `eva2/add-clients`  
-> **Privacidad:** En cumplimiento del principio de minimización de datos (Ley N° 21.719 / Ley N° 19.628 de Protección de Datos Personales), no se solicita RUT. La unicidad se controla mediante `email` (normalizado en minúsculas) y `telefono` (normalizado sin espacios ni guiones).  
+> **Privacidad:** En cumplimiento del principio de minimización de datos (Ley N° 21.719 / Ley N° 19.628 de Protección de Datos Personales), no se solicita RUT. La unicidad se controla exclusivamente mediante `email` (normalizado en minúsculas); el `telefono` se almacena normalizado como dato de contacto sin restricción de unicidad.  
 > **Volver al índice:** [README.md](./README.md)
 
 ```gherkin
@@ -13,7 +13,7 @@ Característica: Gestión de clientes del restaurante
 
   @SG-CLI-01
   Escenario: Registro exitoso de un nuevo cliente
-    Dado que no existe ningún cliente activo o baneado con email "ana.perez@correo.cl" ni teléfono "+56912345678"
+    Dado que no existe ningún cliente activo o baneado con email "ana.perez@correo.cl"
     Cuando envío POST /api/v1/clientes con nombre "Ana Pérez", email "ANA.PEREZ@correo.cl" y teléfono "+56 9 1234-5678"
     Entonces la respuesta es HTTP 201 Created
     Y el cliente se guarda con email normalizado "ana.perez@correo.cl", teléfono "+56912345678", estado "ACTIVO" y cancelacionesTardias 0
@@ -26,9 +26,9 @@ Característica: Gestión de clientes del restaurante
     Y el cuerpo JSON incluye categoría "VALIDATION" y el detalle de los campos inválidos sin trazas internas
 
   @SG-CLI-03
-  Escenario: Rechazo de cliente duplicado por email o teléfono aunque cambie el nombre
-    Dado que existe un cliente "ACTIVO" o "BANEADO" registrado como "Juanito Pérez" con email "juan@correo.cl" y teléfono "+56987654321"
-    Cuando envío POST /api/v1/clientes con nombre "Juan P." y el mismo email "JUAN@CORREO.CL" o el mismo teléfono "+56 9 8765 4321"
+  Escenario: Rechazo de cliente duplicado por email aunque cambie el nombre o el teléfono
+    Dado que existe un cliente "ACTIVO" o "BANEADO" registrado como "Juanito Pérez" con email "juan@correo.cl"
+    Cuando envío POST /api/v1/clientes con nombre "Juan P.", otro teléfono y el mismo email "JUAN@CORREO.CL"
     Entonces la respuesta es HTTP 409 Conflict con categoría "BUSINESS"
     Y no se crea un cliente duplicado
 
@@ -47,15 +47,15 @@ Característica: Gestión de clientes del restaurante
   @SG-CLI-06
   Escenario: Actualización exitosa de datos de un cliente existente
     Dado que existe un cliente "ACTIVO" con ID 1
-    Y el nuevo email y teléfono no pertenecen a otro cliente no eliminado
+    Y el nuevo email no pertenece a otro cliente no eliminado
     Cuando envío PUT /api/v1/clientes/1 con los nuevos datos
     Entonces la respuesta es HTTP 200 OK
     Y los datos actualizados y normalizados se persisten en "data/datos.json"
 
   @SG-CLI-07
-  Escenario: Rechazo de actualización de cliente por conflicto de email o teléfono duplicado
+  Escenario: Rechazo de actualización de cliente por conflicto de email duplicado
     Dado que existen el cliente 1 y el cliente 2 no eliminados
-    Cuando envío PUT /api/v1/clientes/1 utilizando el email o teléfono que ya pertenece al cliente 2
+    Cuando envío PUT /api/v1/clientes/1 utilizando el email que ya pertenece al cliente 2
     Entonces la respuesta es HTTP 409 Conflict con categoría "BUSINESS"
 
   @SG-CLI-08

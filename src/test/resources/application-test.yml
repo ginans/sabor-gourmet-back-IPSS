@@ -1,0 +1,3 @@
+app:
+  storage:
+    file-path: target/test-data/data.json

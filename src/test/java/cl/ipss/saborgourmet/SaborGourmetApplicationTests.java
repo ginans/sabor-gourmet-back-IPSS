@@ -15,10 +15,12 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 @SpringBootTest
 @AutoConfigureMockMvc
+@ActiveProfiles("test")
 class SaborGourmetApplicationTests {
 
     @Autowired
@@ -33,7 +35,7 @@ class SaborGourmetApplicationTests {
     @Test
     @DisplayName("Application context loads externalized storage and reservation properties")
     void contextLoadsConfigurationProperties() {
-        assertThat(storageProperties.filePath()).isEqualTo("data/data.json");
+        assertThat(storageProperties.filePath()).isEqualTo("target/test-data/data.json");
         assertThat(reservationProperties.turnDurationMinutes()).isEqualTo(120);
         assertThat(reservationProperties.openingTime()).isEqualTo(LocalTime.of(12, 0));
         assertThat(reservationProperties.closingTime()).isEqualTo(LocalTime.of(23, 0));
